@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -f c:/myapp/_boq_raw.html && echo \"temp file removed\")",
+      "Bash(node -e \"const k=require\\('./knexfile'\\).development;const db=require\\('knex'\\)\\(k\\);db\\('products'\\).select\\('id','code','name','category','price','unit','status'\\).then\\(r=>{console.table\\(r\\);return db.destroy\\(\\);}\\).catch\\(e=>{console.error\\(e.message\\);db.destroy\\(\\);}\\);\")",
+      "Bash(curl -s http://localhost:3000/api/pdb/products)",
+      "Bash(curl -s -X POST http://localhost:3000/api/pdb/products -H \"Content-Type: application/json\" -d '{\"code\":\"TEST-001\",\"name\":\"ทดสอบเพิ่มสินค้า\",\"category\":\"🧵 ผ้า\",\"price\":\"199\",\"unit\":\"หลา\",\"status\":\"active\"}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>console.log\\(JSON.parse\\(d\\).length+' rows'\\)\\)\")",
+      "Bash(node -e \"const k=require\\('./knexfile'\\).development;const db=require\\('knex'\\)\\(k\\);db\\('products'\\).where\\('code','TEST-001'\\).del\\(\\).then\\(n=>{console.log\\('ลบ '+n+' รายการทดสอบ'\\);return db.destroy\\(\\);}\\).catch\\(e=>{console.error\\(e.message\\);db.destroy\\(\\);}\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).where\\('category','🪡 ผ้าซับBackout-ผ้าซับหลัง'\\).where\\('supplier','like','%เซน่า%'\\).where\\('name','like','%P.WOOD%'\\).update\\({category:'▤ มู่ลี่ไม้',updated_at:knex.fn.now\\(\\)}\\).then\\(n=>{console.log\\('updated:',n,'rows'\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).where\\('category','🪡 ผ้าซับBackout-ผ้าซับหลัง'\\).where\\('supplier','like','%เซน่า%'\\).where\\('name','like','%Foamwood%'\\).update\\({category:'▤ มู่ลี่ไม้',updated_at:knex.fn.now\\(\\)}\\).then\\(n=>{console.log\\('updated:',n,'rows'\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).where\\('category','🪡 ผ้าซับBackout-ผ้าซับหลัง'\\).where\\('supplier','like','%เซน่า%'\\).where\\('name','like','%FOAM%'\\).update\\({category:'▤ มู่ลี่ไม้',updated_at:knex.fn.now\\(\\)}\\).then\\(n=>{console.log\\('updated:',n,'rows'\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).where\\('category','🪡 ผ้าซับBackout-ผ้าซับหลัง'\\).where\\('supplier','like','%หมอชิต%'\\).count\\('* as n'\\).first\\(\\).then\\(r=>{console.log\\('total:',r.n\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).where\\('category','🪡 ผ้าซับBackout-ผ้าซับหลัง'\\).where\\('supplier','like','%หมอชิต%'\\).del\\(\\).then\\(n=>{console.log\\('deleted:',n,'rows'\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).where\\('supplier','like','%โยโกแทค%'\\).update\\({category:'📦 รางม่าน \\(แมนนวล\\)',updated_at:knex.fn.now\\(\\)}\\).then\\(n=>{console.log\\('updated:',n,'rows'\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).where\\('category','like','%รางม่าน%แมนนวล%'\\).count\\('* as n'\\).first\\(\\).then\\(r=>{console.log\\('count:',r.n\\);return knex\\('products'\\).where\\('category','like','%รางม่าน%แมนนวล%'\\).select\\('category'\\).first\\(\\);}\\).then\\(r=>{console.log\\('exact category:',JSON.stringify\\(r\\)\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('menu_nodes'\\).where\\('label','like','%รางม่าน%'\\).select\\('id','icon','label'\\).then\\(r=>{console.log\\(JSON.stringify\\(r,null,2\\)\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).where\\('category','▤ มู่ลี่ไม้'\\).where\\('supplier','like','%ลัคซูรี่%'\\).where\\('name','like','%กระดุม%'\\).update\\({category:'📦 รางม่าน \\(แมนนวล\\) · รางลอน-กระดุม',updated_at:knex.fn.now\\(\\)}\\).then\\(n=>{console.log\\('updated:',n,'rows'\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(node -e \"const knex = require\\('knex'\\)\\({client:'mysql2',connection:{host:'127.0.0.1',port:3306,database:'linsilin_nextjs',user:'root',password:''}}\\);knex\\('products'\\).whereNot\\('category','📦 รางม่าน \\(แมนนวล\\) · รางม่านพับ'\\).where\\(function\\(\\){this.where\\('name','like','%พับ%'\\).orWhere\\('code','like','%พับ%'\\)}\\).update\\({category:'📦 รางม่าน \\(แมนนวล\\) · รางม่านพับ',updated_at:knex.fn.now\\(\\)}\\).then\\(n=>{console.log\\('updated:',n,'rows'\\);return knex.destroy\\(\\);}\\);\")",
+      "Bash(not exist *)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\myapp\\\\public\\\\boq\")",
+      "Bash(node test-boq.js)",
+      "Bash(curl -s \"http://localhost:3000/api/products?category=%F0%9F%A7%B5%20%E0%B8%9C%E0%B9%89%E0%B8%B2%E0%B8%A1%E0%B9%88%E0%B8%B2%E0%B8%99%20%E0%B8%97%E0%B8%B6%E0%B8%9A-%E0%B9%82%E0%B8%9B%E0%B8%A3%E0%B9%88%E0%B8%87&limit=20\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\); d.forEach\\(p=>console.log\\(p.code,'|',p.ptype,'|',p.description?.slice\\(0,60\\)\\)\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/products?category=%F0%9F%A7%B5%20%E0%B8%9C%E0%B9%89%E0%B8%B2%E0%B8%A1%E0%B9%88%E0%B8%B2%E0%B8%99%20%E0%B8%97%E0%B8%B6%E0%B8%9A-%E0%B9%82%E0%B8%9B%E0%B8%A3%E0%B9%88%E0%B8%87&limit=30\" -o c:/tmp/prods.json)",
+      "Bash(node -e \"const d=require\\('c:/tmp/prods.json'\\); d.slice\\(0,20\\).forEach\\(p=>console.log\\(JSON.stringify\\({code:p.code,ptype:p.ptype,desc:p.description?.slice\\(0,50\\),sup:p.supplier}\\)\\)\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/products?limit=5\" -w \"\\\\nHTTP:%{http_code}\")",
+      "Bash(curl -s \"http://localhost:3000/api/products?category=%F0%9F%A7%B5%20%E0%B8%9C%E0%B9%89%E0%B8%B2%E0%B8%A1%E0%B9%88%E0%B8%B2%E0%B8%99%20%E0%B8%97%E0%B8%B6%E0%B8%9A-%E0%B9%82%E0%B8%9B%E0%B8%A3%E0%B9%88%E0%B8%87&limit=500\")",
+      "Bash(node -e \"const k=require\\('knex'\\)\\(require\\('./knexfile'\\).development\\); k\\('sewing_combos'\\).where\\('type_id','sfold'\\).select\\('combo_key','system','sewing_rate','height_min','height_max'\\).orderBy\\('sort_order'\\).then\\(r=>{console.table\\(r\\);k.destroy\\(\\)}\\)\")",
+      "Bash(npx tsc *)",
+      "PowerShell(Get-ChildItem \"c:\\\\myapp\\\\migrations\\\\\" | Sort-Object Name | Select-Object -Last 10 | ForEach-Object { $_.Name })"
+    ],
+    "additionalDirectories": [
+      "c:\\myapp"
+    ]
+  }
+}
