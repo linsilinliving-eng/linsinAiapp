@@ -7,8 +7,12 @@ First, run the development server:
 Email: admin@linsirin.com  
 Password: 123456
 
-```bash
+
+bash
 npm run dev
+
+
+
 # or
 yarn dev
 # or

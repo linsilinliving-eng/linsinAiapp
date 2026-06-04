@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getProvinces, getAmphoe, getTambon, getZipcode, isBangkok } from '@/lib/thai-address';
 
 const BUSINESS_TYPES = [
   'โรงแรม / รีสอร์ท', 'ออฟฟิศ / สำนักงาน', 'บ้านพักอาศัย / บ้านเช่า',
@@ -10,13 +11,12 @@ const BUSINESS_TYPES = [
 ];
 
 const SOURCE_OPTIONS = [
-  'Walk-in', 'เว็บไซต์', 'Facebook', 'Instagram',
-  'LINE OA', 'TikTok', 'ลูกค้าเก่าแนะนำ', 'Sale (พนักงาน)', 'อื่นๆ',
+  'Walk-in', 'เว็บไซต์', 'Facebook', 'IG - X',
+  'LINE OA', 'TikTok', 'ลูกค้าเก่าแนะนำ', 'Sale', 'อื่นๆ',
 ];
 
 const CONTACT_ROLES = ['ผู้ซื้อ', 'บัญชี', 'โปรเจกต์', 'ติดต่อหลัก'];
 
-const ADDRESS_LABELS = ['บริษัท', 'บ้าน', 'สำนักงาน', 'โปรเจกต์'];
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface AddressForm {
@@ -97,7 +97,7 @@ const CSS = `
 .wiz-check-chip{
   display:flex;align-items:center;gap:6px;
   background:#fafafa;border:1px solid #e2e4e9;border-radius:8px;
-  padding:6px 12px;cursor:pointer;font-size:13px;transition:all .15s;
+  padding:4px 10px;cursor:pointer;font-size:12px;transition:all .15s;
 }
 .wiz-check-chip.selected{background:#1f2937;border-color:#1f2937;color:#fff;font-weight:600}
 .wiz-check-chip:not(.selected):hover{background:#f0f1f3;border-color:#c4c8d0}
@@ -168,7 +168,6 @@ export default function NewCustomerPage() {
   // Step 1: basic info
   const [cusType, setCusType] = useState<'individual' | 'company'>('company');
   const [cusName, setCusName] = useState('');
-  const [nickname, setNickname] = useState('');
   const [taxId, setTaxId] = useState('');
   const [branchType, setBranchType] = useState<'HO' | 'BR' | '-'>('-');
   const [branchNo, setBranchNo] = useState('');
@@ -186,6 +185,8 @@ export default function NewCustomerPage() {
   const [commType, setCommType] = useState<'none' | 'percent' | 'amount'>('none');
   const [commValue, setCommValue] = useState('');
   const [creditDay, setCreditDay] = useState('0');
+  const [creditDoc, setCreditDoc] = useState<File | null>(null);
+  const [creditDocUrl, setCreditDocUrl] = useState<string | null>(null);
   const [remark, setRemark] = useState('');
 
   const validate1 = () => {
@@ -227,7 +228,7 @@ export default function NewCustomerPage() {
       const body = {
         cus_type: cusType,
         cus_name: cusName,
-        nickname: nickname || null,
+        nickname: null,
         tax_id: taxId || null,
         branch_type: branchType,
         branch_no: branchNo || null,
@@ -377,12 +378,16 @@ export default function NewCustomerPage() {
 
               <div className="wiz-row">
                 <div className="wiz-field">
-                  <label className="wiz-label">ชื่อเล่น / ชื่อย่อ</label>
-                  <input className="wiz-input" value={nickname} onChange={e => setNickname(e.target.value)} placeholder="ย่อ..." />
-                </div>
-                <div className="wiz-field">
                   <label className="wiz-label">เลขประจำตัวผู้เสียภาษี</label>
                   <input className="wiz-input" value={taxId} onChange={e => setTaxId(e.target.value)} placeholder="13 หลัก" maxLength={13} />
+                </div>
+                <div className="wiz-field">
+                  <label className="wiz-label">ประเภทธุรกิจ <span className="req">*</span></label>
+                  <select className={`wiz-select ${errors.businessType ? 'error' : ''}`} value={businessType} onChange={e => { setBusinessType(e.target.value); setErrors(p => ({ ...p, businessType: '' })); }}>
+                    <option value="">— เลือกประเภท —</option>
+                    {BUSINESS_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  {errors.businessType && <div className="wiz-error">{errors.businessType}</div>}
                 </div>
               </div>
 
@@ -402,15 +407,6 @@ export default function NewCustomerPage() {
                   </div>
                 </div>
               )}
-
-              <div className="wiz-field">
-                <label className="wiz-label">ประเภทธุรกิจ <span className="req">*</span></label>
-                <select className={`wiz-select ${errors.businessType ? 'error' : ''}`} value={businessType} onChange={e => { setBusinessType(e.target.value); setErrors(p => ({ ...p, businessType: '' })); }}>
-                  <option value="">— เลือกประเภท —</option>
-                  {BUSINESS_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-                {errors.businessType && <div className="wiz-error">{errors.businessType}</div>}
-              </div>
             </div>
           )}
 
@@ -419,32 +415,11 @@ export default function NewCustomerPage() {
             <div className="wiz-body">
               {addresses.map((a, i) => (
                 <div key={i} className="wiz-addr-card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#374151' }}>
-                      {a.is_default ? '⭐ ที่อยู่หลัก' : `ที่อยู่ ${i + 1}`}
-                    </div>
-                    {i > 0 && (
+                  {i > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                       <button className="wiz-remove-btn" onClick={() => setAddresses(p => p.filter((_, idx) => idx !== i))}>✕ ลบ</button>
-                    )}
-                  </div>
-
-                  <div className="wiz-row" style={{ marginBottom: 10 }}>
-                    <div className="wiz-field" style={{ marginBottom: 0 }}>
-                      <label className="wiz-label">Label</label>
-                      <select className="wiz-select" value={a.label} onChange={e => updateAddr(i, 'label', e.target.value)}>
-                        {ADDRESS_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
-                      </select>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
-                      <label className="wiz-flag-check" style={{ fontSize: 12 }}>
-                        <input type="checkbox" checked={a.is_default} onChange={e => {
-                          if (!e.target.checked) return;
-                          setAddresses(prev => prev.map((x, idx) => ({ ...x, is_default: idx === i })));
-                        }} />
-                        ⭐ ตั้งเป็นหลัก
-                      </label>
-                    </div>
-                  </div>
+                  )}
 
                   <div className="wiz-field">
                     <label className="wiz-label">บรรทัดที่ 1 <span className="req">*</span></label>
@@ -457,27 +432,52 @@ export default function NewCustomerPage() {
                     {errors[`addr_${i}`] && <div className="wiz-error">{errors[`addr_${i}`]}</div>}
                   </div>
 
-                  <div className="wiz-row3">
-                    <div className="wiz-field" style={{ marginBottom: 0 }}>
-                      <label className="wiz-label">แขวง / ตำบล</label>
-                      <input className="wiz-input" value={a.sub_district} onChange={e => updateAddr(i, 'sub_district', e.target.value)} />
-                    </div>
-                    <div className="wiz-field" style={{ marginBottom: 0 }}>
-                      <label className="wiz-label">เขต / อำเภอ</label>
-                      <input className="wiz-input" value={a.district} onChange={e => updateAddr(i, 'district', e.target.value)} />
-                    </div>
-                    <div className="wiz-field" style={{ marginBottom: 0 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 0.8fr', gap: 10, marginBottom: 10 }}>
+                    <div>
                       <label className="wiz-label">จังหวัด</label>
-                      <input className="wiz-input" value={a.province} onChange={e => updateAddr(i, 'province', e.target.value)} />
+                      <select className="wiz-select" value={a.province} onChange={e => {
+                        const pv = e.target.value;
+                        setAddresses(prev => prev.map((x, idx) => idx === i ? { ...x, province: pv, district: '', sub_district: '', postal_code: '' } : x));
+                      }}>
+                        <option value="">— เลือก —</option>
+                        {getProvinces().map(pv => <option key={pv} value={pv}>{pv}</option>)}
+                      </select>
                     </div>
-                  </div>
-
-                  <div className="wiz-field" style={{ marginTop: 10 }}>
-                    <label className="wiz-label">รหัสไปรษณีย์</label>
-                    <input className="wiz-input" value={a.postal_code} onChange={e => updateAddr(i, 'postal_code', e.target.value)} maxLength={5} style={{ width: 120 }} />
+                    <div>
+                      <label className="wiz-label">อำเภอ/เขต</label>
+                      <select className="wiz-input" value={a.district} onChange={e => {
+                        const v = e.target.value;
+                        setAddresses(prev => prev.map((x, idx) => idx === i ? { ...x, district: v, sub_district: '', postal_code: '' } : x));
+                      }}>
+                        <option value="">-- เลือก --</option>
+                        {getAmphoe(a.province).map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="wiz-label">ตำบล/แขวง</label>
+                      <select className="wiz-input" value={a.sub_district} onChange={e => {
+                        const v = e.target.value;
+                        const z = getZipcode(a.province, a.district, v);
+                        setAddresses(prev => prev.map((x, idx) => idx === i ? { ...x, sub_district: v, postal_code: z || x.postal_code } : x));
+                      }}>
+                        <option value="">-- เลือก --</option>
+                        {getTambon(a.province, a.district).map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="wiz-label">รหัสไปรษณีย์</label>
+                      <input className="wiz-input" value={a.postal_code} onChange={e => updateAddr(i, 'postal_code', e.target.value)} maxLength={5} placeholder="อัตโนมัติ" />
+                    </div>
                   </div>
 
                   <div className="wiz-flag-checks" style={{ marginTop: 4 }}>
+                    <label className="wiz-flag-check">
+                      <input type="checkbox" checked={a.is_default} onChange={e => {
+                        if (!e.target.checked) return;
+                        setAddresses(prev => prev.map((x, idx) => ({ ...x, is_default: idx === i })));
+                      }} />
+                      ⭐ ตั้งเป็นหลัก
+                    </label>
                     {([['use_for_invoice', 'ออกใบกำกับ'], ['use_for_shipping', 'จัดส่ง'], ['use_for_install', 'ติดตั้ง']] as const).map(([field, lbl]) => (
                       <label key={field} className="wiz-flag-check">
                         <input type="checkbox" checked={Boolean(a[field])} onChange={e => updateAddr(i, field, e.target.checked)} />
@@ -519,19 +519,8 @@ export default function NewCustomerPage() {
                       {errors[`contact_${i}`] && <div className="wiz-error">{errors[`contact_${i}`]}</div>}
                     </div>
                     <div className="wiz-field">
-                      <label className="wiz-label">ชื่อเล่น</label>
-                      <input className="wiz-input" value={c.nickname} onChange={e => updateContact(i, 'nickname', e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div className="wiz-field">
-                    <label className="wiz-label">ตำแหน่ง / บทบาท</label>
-                    <div className="wiz-checks">
-                      {CONTACT_ROLES.map(role => (
-                        <label key={role} className={`wiz-check-chip ${c.roles.includes(role) ? 'selected' : ''}`} onClick={() => toggleRole(i, role)}>
-                          {role}
-                        </label>
-                      ))}
+                      <label className="wiz-label">อีเมล</label>
+                      <input className="wiz-input" type="email" value={c.email} onChange={e => updateContact(i, 'email', e.target.value)} placeholder="email@example.com" />
                     </div>
                   </div>
 
@@ -547,8 +536,14 @@ export default function NewCustomerPage() {
                   </div>
 
                   <div className="wiz-field">
-                    <label className="wiz-label">อีเมล</label>
-                    <input className="wiz-input" type="email" value={c.email} onChange={e => updateContact(i, 'email', e.target.value)} placeholder="email@example.com" />
+                    <label className="wiz-label">ตำแหน่ง / บทบาท</label>
+                    <div className="wiz-checks">
+                      {CONTACT_ROLES.map(role => (
+                        <label key={role} className={`wiz-check-chip ${c.roles.includes(role) ? 'selected' : ''}`} onClick={() => toggleRole(i, role)}>
+                          {role}
+                        </label>
+                      ))}
+                    </div>
                   </div>
 
                   <label className="wiz-flag-check">
@@ -589,7 +584,7 @@ export default function NewCustomerPage() {
                 )}
               </div>
 
-              {(sources.includes('ลูกค้าเก่าแนะนำ') || sources.includes('Sale (พนักงาน)')) && (
+              {(sources.includes('ลูกค้าเก่าแนะนำ') || sources.includes('Sale')) && (
                 <div className="wiz-section">
                   <div className="wiz-section-title">💰 ค่าคอมมิชชัน</div>
                   <div className="wiz-row">
@@ -618,33 +613,75 @@ export default function NewCustomerPage() {
               )}
 
               <div className="wiz-section">
-                <div className="wiz-section-title">💳 เงื่อนไขเครดิต</div>
-                <div className="wiz-row">
-                  <div className="wiz-field">
-                    <label className="wiz-label">จำนวนวันเครดิต</label>
-                    <input
-                      className="wiz-input"
-                      type="number"
-                      value={creditDay}
-                      onChange={e => setCreditDay(e.target.value)}
-                      placeholder="0 = เงินสด"
-                    />
+                <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'start' }}>
+                  <div>
+                    <div className="wiz-section-title">💳 เงื่อนไขเครดิต</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                      <label className="wiz-flag-check" style={{ fontSize: 14 }}>
+                        <input type="radio" name="creditType" checked={Number(creditDay) === 0} onChange={() => setCreditDay('0')} />
+                        เงินสด
+                      </label>
+                      <label className="wiz-flag-check" style={{ fontSize: 14 }}>
+                        <input type="radio" name="creditType" checked={Number(creditDay) > 0} onChange={() => setCreditDay(creditDay === '0' ? '30' : creditDay)} />
+                        เครดิต
+                      </label>
+                      {Number(creditDay) > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input className="wiz-input" type="number" min={1} value={creditDay} onChange={e => setCreditDay(e.target.value)} style={{ width: 80 }} />
+                          <span style={{ fontSize: 13, color: '#6b7280' }}>วัน</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
-                    <span style={{ fontSize: 13, color: '#6b7280' }}>
-                      {Number(creditDay) === 0 ? 'เงินสด' : `เครดิต ${creditDay} วัน`}
-                    </span>
+                  <div>
+                    <div className="wiz-section-title" style={{ fontSize: 12 }}>แนบเอกสาร ลูกค้า</div>
+                    <label style={{ cursor: 'pointer', display: 'block' }}>
+                      <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => {
+                        const f = e.target.files?.[0] ?? null;
+                        if (creditDocUrl) URL.revokeObjectURL(creditDocUrl);
+                        setCreditDoc(f);
+                        setCreditDocUrl(f ? URL.createObjectURL(f) : null);
+                      }} />
+                      {creditDocUrl && creditDoc?.type.startsWith('image/') ? (
+                        <div style={{ position: 'relative' }}>
+                          <img src={creditDocUrl} alt="preview" style={{ width: '100%', height: 50, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e4e9', display: 'block' }} />
+                          <button type="button" onClick={e => { e.preventDefault(); if (creditDocUrl) URL.revokeObjectURL(creditDocUrl); setCreditDoc(null); setCreditDocUrl(null); }}
+                            style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,.45)', border: 'none', color: '#fff', borderRadius: 4, width: 20, height: 20, cursor: 'pointer', fontSize: 11, lineHeight: '20px', textAlign: 'center', padding: 0 }}>✕</button>
+                        </div>
+                      ) : creditDoc ? (
+                        <div style={{ border: '2px dashed #d1d5db', borderRadius: 8, padding: '12px 8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 20 }}>📄</div>
+                          <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4, wordBreak: 'break-all' }}>{creditDoc.name}</div>
+                        </div>
+                      ) : (
+                        <div style={{ border: '2px dashed #d1d5db', borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 14 }}>📷</div>
+                          <div style={{ fontSize: 10, color: '#6b7280' }}>คลิกเพื่อเลือก</div>
+                          <div style={{ fontSize: 9, color: '#9ca3af' }}>JPG, PNG, PDF</div>
+                        </div>
+                      )}
+                    </label>
                   </div>
                 </div>
               </div>
 
               {/* Review summary */}
               <div className="wiz-section">
+                <div className="wiz-section-title">📝 หมายเหตุ / Note</div>
+                <textarea
+                  className="wiz-input"
+                  rows={3}
+                  value={remark}
+                  onChange={e => setRemark(e.target.value)}
+                  placeholder="บันทึกเพิ่มเติม..."
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+              <div className="wiz-section">
                 <div className="wiz-section-title">🔍 ตรวจสอบก่อนบันทึก</div>
                 <div className="wiz-review-block">
                   <div className="wiz-review-row"><span className="lbl">ประเภท</span><span className="val">{cusType === 'company' ? '🏢 นิติบุคคล' : '👤 บุคคลธรรมดา'}</span></div>
                   <div className="wiz-review-row"><span className="lbl">ชื่อ</span><span className="val">{cusName || '—'}</span></div>
-                  {nickname && <div className="wiz-review-row"><span className="lbl">ชื่อเล่น</span><span className="val">{nickname}</span></div>}
                   {taxId && <div className="wiz-review-row"><span className="lbl">เลขภาษี</span><span className="val">{taxId}</span></div>}
                   <div className="wiz-review-row"><span className="lbl">ประเภทธุรกิจ</span><span className="val">{businessType || '—'}</span></div>
                   <div className="wiz-review-row">

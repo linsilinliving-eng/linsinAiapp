@@ -24,6 +24,9 @@ interface Product {
   supplier: string | null;
   status: string;
   description: string | null;
+  width1: string | null;
+  width2: string | null;
+  cost_price: string | number | null;
 }
 interface MenuRow { id: number; parent_id: number | null; icon: string; label: string; sort_order: number; }
 interface MenuNodeT extends MenuRow { children: MenuNodeT[]; }
@@ -62,6 +65,18 @@ function buildTree(rows: MenuRow[]): MenuNodeT[] {
 function flatten(tree: MenuNodeT[], depth = 0, acc: { id: number; label: string; depth: number }[] = []) {
   for (const n of tree) { acc.push({ id: n.id, label: n.label, depth }); flatten(n.children, depth + 1, acc); }
   return acc;
+}
+function getLeafLabels(node: MenuNodeT): string[] {
+  if (node.children.length === 0) return [node.label];
+  return node.children.flatMap(getLeafLabels);
+}
+function findNodeByLabel(nodes: MenuNodeT[], label: string): MenuNodeT | null {
+  for (const n of nodes) {
+    if (n.label === label) return n;
+    const found = findNodeByLabel(n.children, label);
+    if (found) return found;
+  }
+  return null;
 }
 
 function MoveDropdown({ value, items, onChange, onClose }: {
@@ -127,7 +142,7 @@ function MoveDropdown({ value, items, onChange, onClose }: {
 const EMPTY_FORM = {
   code: '', name: '', name_en: '', category: '🧵 ผ้า', ptype: 'ทึบ',
   description: '', price: '', unit: 'หลา', face_width: '', reorder_point: '',
-  supplier: '', status: 'active',
+  supplier: '', status: 'active', width1: '', width2: '', cost_price: '',
 };
 type FormState = typeof EMPTY_FORM;
 
@@ -152,15 +167,18 @@ function MenuNode({ node, depth, cnt, catFilter, manage, onPick, onDelete }: {
       className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
   );
 
+  const HEADER_ONLY = new Set(['รางม่าน - แมนนวล', 'รางม่าน - (มอร์เตอร์)', 'ม่านม้วน (มอร์เตอร์+แมนนวล)', 'มุ้งจีบ-มุ้งลวด', 'วัสดุก่อสร้าง', 'WALLPAPER', 'มู่ลี่ไม้ (มอร์เตอร์+แมนนวล)']);
+  const isHeaderOnly = HEADER_ONLY.has(node.label);
+
   if (hasChildren) {
     return (
       <details className="group" open>
         <summary className="px-3 py-2 rounded-lg flex items-center justify-between text-xs cursor-pointer hover:bg-stone-200"
           style={{ listStyle: 'none', ...(depth === 0 ? { background: catFilter === node.label ? '#1f2937' : '#e8eaed', fontWeight: 600, color: catFilter === node.label ? '#fff' : '#1f2937' } : { fontWeight: 500, color: '#1f2937' }) }}>
-          <span className="flex items-center gap-2" onClick={(e) => { e.preventDefault(); onPick(node.label); }}>
+          <span className="flex items-center gap-2" onClick={(e) => { e.preventDefault(); if (!isHeaderOnly) onPick(node.label); }}>
             <span className="pdb-chev text-stone-400 text-xs">▶</span>{display}
           </span>
-          <span className="flex items-center gap-1">{delBtn}<Count n={n} color={catFilter === node.label ? 'rgba(255,255,255,.7)' : undefined} /></span>
+          <span className="flex items-center gap-1">{delBtn}{!isHeaderOnly && <Count n={n} color={catFilter === node.label ? 'rgba(255,255,255,.7)' : undefined} />}</span>
         </summary>
         <div className="ml-6 mt-1 space-y-0.5 text-xs">
           {node.children.map((c) => (
@@ -208,6 +226,7 @@ export default function ProductDatabasePage() {
   /* filters */
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
+  const [catFilterSet, setCatFilterSet] = useState<Set<string> | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
 
   /* product form */
@@ -245,14 +264,20 @@ export default function ProductDatabasePage() {
 
   const set = (k: keyof FormState, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const cnt = useCallback(
-    (kw: string) => products.filter((p) =>
-      (p.category ?? '').includes(kw) || (p.ptype ?? '').includes(kw)).length,
-    [products],
-  );
-
   const tree = useMemo(() => buildTree(menu), [menu]);
   const flatMenu = useMemo(() => flatten(tree), [tree]);
+
+  const cnt = useCallback(
+    (kw: string) => {
+      const node = findNodeByLabel(tree, kw);
+      if (node && node.children.length > 0) {
+        const leafSet = new Set(getLeafLabels(node));
+        return products.filter(p => leafSet.has(p.category ?? '')).length;
+      }
+      return products.filter(p => (p.category ?? '') === kw).length;
+    },
+    [products, tree],
+  );
 
   const allCategories = useMemo(() => {
     const cats = new Set(products.map((p) => p.category).filter(Boolean) as string[]);
@@ -264,7 +289,9 @@ export default function ProductDatabasePage() {
     return products.filter((p) => {
       const matchQ = !q || [p.code, p.name, p.name_en, p.supplier, p.category, p.ptype, p.description]
         .some((x) => (x ?? '').toLowerCase().includes(q));
-      const matchCat = !catFilter || (p.category ?? '').includes(catFilter) || (p.ptype ?? '').includes(catFilter);
+      const matchCat = !catFilter ||
+        (catFilterSet ? catFilterSet.has(p.category ?? '') : (p.category ?? '') === catFilter) ||
+        (p.ptype ?? '') === catFilter;
       const matchStatus = !statusFilter || p.status === statusFilter;
       return matchQ && matchCat && matchStatus;
     });
@@ -281,18 +308,41 @@ export default function ProductDatabasePage() {
   const handlePerPage = (pp: number) => { setPerPage(pp); setPage(1); };
 
   /* ---- product actions ---- */
-  function openCreate() { setForm({ ...EMPTY_FORM }); setEditingId(null); setError(''); setView('form'); }
+  function openCreate() { setForm({ ...EMPTY_FORM, category: (catFilter && !catFilterSet) ? catFilter : '' }); setEditingId(null); setError(''); setView('form'); }
   function openEdit(p: Product) {
+    const cat = p.category ?? '';
+    const codeOrName = (p.code ?? '') + ' ' + (p.name ?? '');
+    const ptypeResolved = (cat === 'รางม่านจีบ' || cat === 'รางม่านลอน' || cat === 'รางลอน-กระดุม')
+      ? (p.ptype || (codeOrName.includes('เชือกดึง') ? 'ระบบ-เชือกดึง' : 'ระบบ-มือปัด'))
+      : (cat === 'มุ้งจีบ-ประตู' || cat === 'มุ้งจีบ-หน้าต่าง')
+      ? (codeOrName.includes('บานคู่') ? 'บานคู่ (ผ่ากลาง)' : codeOrName.includes('บานอิสระ') ? 'บานอิสระ (เปิด/ปิด-อิสระ)' : codeOrName.includes('บานเดี่ยว') ? 'บานเดี่ยว (เก็บขวา/เก็บซ้าย)' : (p.ptype ?? ''))
+      : (p.ptype ?? 'ทึบ');
     setForm({
       code: p.code ?? '', name: p.name, name_en: p.name_en ?? '',
-      category: p.category ?? '🧵 ผ้า', ptype: p.ptype ?? 'ทึบ',
-      description: p.description ?? '', price: String(p.price ?? ''), unit: p.unit ?? 'หลา',
+      category: cat || '🧵 ผ้า', ptype: ptypeResolved,
+      description: p.description ?? '', price: p.price != null ? String(Math.round(Number(p.price))) : '', unit: p.unit ?? 'หลา',
       face_width: p.face_width != null ? String(p.face_width) : '',
       reorder_point: p.reorder_point != null ? String(p.reorder_point) : '',
       supplier: p.supplier ?? '', status: p.status ?? 'active',
+      width1: p.width1 ?? '', width2: p.width2 ?? '',
+      cost_price: p.cost_price != null ? String(Math.round(Number(p.cost_price))) : '',
     });
     setEditingId(p.id); setError(''); setView('form');
   }
+  const [movingCat, setMovingCat] = useState(false);
+  async function moveCatNow() {
+    if (!editingId || !form.category) return;
+    setMovingCat(true);
+    try {
+      await fetch(`/api/pdb/products/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form }),
+      });
+      await loadProducts();
+    } finally { setMovingCat(false); }
+  }
+
   async function save(addAnother: boolean) {
     if (!form.name.trim()) { setError('กรุณาระบุชื่อสินค้า'); return; }
     setSaving(true); setError('');
@@ -341,7 +391,13 @@ export default function ProductDatabasePage() {
     } catch (e: any) { setError(e.message); }
   }
 
-  const pickCat = (kw: string) => { setCatFilter(kw); setView('list'); };
+  const pickCat = (kw: string) => {
+    setCatFilter(kw);
+    setView('list');
+    if (!kw) { setCatFilterSet(null); return; }
+    const node = findNodeByLabel(tree, kw);
+    setCatFilterSet(node && node.children.length > 0 ? new Set(getLeafLabels(node)) : null);
+  };
 
   /* ---- menu actions ---- */
   async function addMenu() {
@@ -403,7 +459,7 @@ export default function ProductDatabasePage() {
             <div className="text-xs font-semibold mb-1" style={{ color: '#374151' }}>🎯 Smart Filter</div>
             <div className="text-xs text-stone-600 mb-2">{catFilter ? `กำลังกรอง: ${catFilter}` : 'แสดงทุกหมวด'}</div>
             <div className="text-xs" style={{ color: '#166534' }}>✓ {filtered.length} รายการที่ตรงเงื่อนไข</div>
-            <button onClick={() => { setCatFilter(''); setSearch(''); setStatusFilter(''); }}
+            <button onClick={() => { setCatFilter(''); setCatFilterSet(null); setSearch(''); setStatusFilter(''); }}
               className="text-xs text-stone-500 underline mt-1">ล้างฟิลเตอร์</button>
           </div>
 
@@ -469,9 +525,11 @@ export default function ProductDatabasePage() {
 
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-light mb-1" style={{ color: '#111827' }}>📦 สินค้าทั้งหมด</h1>
+              <h1 className="text-2xl font-light mb-1" style={{ color: '#111827' }}>
+                {catFilter ? (() => { const node = menu.find(r => r.label === catFilter); return `${node?.icon ?? '📦'} ${catFilter}`; })() : '📦 สินค้าทั้งหมด'}
+              </h1>
               <p className="text-sm text-stone-500">
-                {loading ? 'กำลังโหลด…' : `${products.length} รายการ · แสดง ${filtered.length} · ข้อมูลจากฐานข้อมูล`}
+                {loading ? 'กำลังโหลด…' : catFilter ? `${filtered.length} รายการ · ข้อมูลจากฐานข้อมูล` : `${products.length} รายการ · แสดง ${filtered.length} · ข้อมูลจากฐานข้อมูล`}
               </p>
             </div>
             <div className="flex gap-2">
@@ -507,9 +565,10 @@ export default function ProductDatabasePage() {
                 </select>
                 <select className="pdb-input" style={{ width: 150 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                   <option value="">สถานะทั้งหมด</option>
-                  <option value="active">ใช้งาน</option>
+                  <option value="active">ปกติ</option>
                   <option value="paused">พักขาย</option>
-                  <option value="discontinued">หยุดขาย</option>
+                  <option value="discontinued">สินค้ายกเลิก</option>
+                  <option value="boq_used">ใช้งานใน BOQ</option>
                 </select>
               </div>
 
@@ -582,9 +641,10 @@ export default function ProductDatabasePage() {
                           <td className={`py-3 px-4 text-right font-medium whitespace-nowrap ${off ? 'text-stone-400' : ''}`}>{fmtPrice(p.price)}</td>
                           <td className="py-3 px-4 text-sm text-stone-600 whitespace-nowrap">฿/{p.unit || 'ชิ้น'}</td>
                           <td className="py-3 px-4 text-center whitespace-nowrap">
-                            {p.status === 'active' && <span className="pdb-badge" style={{ background: '#D1F2D7', color: '#166534' }}>ใช้งาน</span>}
+                            {p.status === 'active' && <span className="pdb-badge" style={{ background: '#D1F2D7', color: '#166534' }}>ปกติ</span>}
                             {p.status === 'paused' && <span className="pdb-badge" style={{ background: '#FEF3C7', color: '#92400E' }}>พักขาย</span>}
-                            {p.status === 'discontinued' && <span className="pdb-badge" style={{ background: '#FFE5E5', color: '#8B1F1F' }}>หยุดขาย</span>}
+                            {p.status === 'discontinued' && <span className="pdb-badge" style={{ background: '#FFE5E5', color: '#8B1F1F' }}>สินค้ายกเลิก</span>}
+                            {p.status === 'boq_used' && <span className="pdb-badge" style={{ background: '#DBEAFE', color: '#1e40af' }}>📋 ใช้งานใน BOQ</span>}
                           </td>
                         </tr>
                       );
@@ -621,10 +681,35 @@ export default function ProductDatabasePage() {
                 <button onClick={() => setView('list')} className="text-stone-400 hover:text-stone-600">✕</button>
               </div>
 
-              <div className="mb-5">
-                <label className="pdb-label">ชื่อผู้ขาย</label>
-                <input type="text" value={form.supplier} onChange={(e) => set('supplier', e.target.value)}
-                  className="pdb-input" placeholder="เช่น SMILE Design, SOMFY Thailand, บริษัท ธาวัน เดคคอน 2001 จำกัด" />
+              <div className="grid grid-cols-2 gap-6 mb-5 items-end">
+                <div>
+                  <label className="pdb-label" style={{ color: '#dc2626' }}>ชื่อผู้ขาย</label>
+                  <input type="text" value={form.supplier} onChange={(e) => set('supplier', e.target.value)}
+                    className="pdb-input" placeholder="เช่น SMILE Design, SOMFY Thailand, บริษัท ธาวัน เดคคอน 2001 จำกัด" />
+                </div>
+                <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="pdb-label">หมวด <span className="text-red-500">*</span></label>
+                  <select className="pdb-input" value={form.category} onChange={(e) => set('category', e.target.value)}>
+                    <option value="">-- เลือกหมวด --</option>
+                    {flatMenu.map((m) => {
+                      const row = menu.find((r) => r.id === m.id);
+                      const icon = row?.icon ? row.icon + ' ' : '';
+                      const hasChildren = menu.some(r => r.parent_id === m.id);
+                      return (m.depth === 0 && hasChildren)
+                        ? <option key={m.id} value="" disabled style={{ fontWeight: 600, color: '#6b7280', background: '#e8eaed' }}>── {icon}{m.label} ──</option>
+                        : <option key={m.id} value={m.label}>{m.depth > 0 ? '· '.repeat(m.depth - 1) : ''}{icon}{m.label}</option>;
+                    })}
+                  </select>
+                </div>
+                {editingId && (
+                  <button onClick={moveCatNow} disabled={movingCat || !form.category}
+                    className="py-2.5 px-2 rounded-lg text-xs font-medium text-white transition-all whitespace-nowrap"
+                    style={{ background: movingCat ? '#9ca3af' : '#1f3a3a' }}>
+                    {movingCat ? 'ย้าย…' : '📦 ย้าย'}
+                  </button>
+                )}
+                </div>
               </div>
 
               {error && (
@@ -633,107 +718,228 @@ export default function ProductDatabasePage() {
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#9ca3af' }}>ข้อมูลหลัก</div>
                   <div>
-                    <label className="pdb-label">รหัสสินค้า</label>
+                    <label className="pdb-label" style={{ color: '#dc2626' }}>รหัสสินค้า</label>
                     <input type="text" value={form.code} onChange={(e) => set('code', e.target.value)}
                       className="pdb-input font-mono" placeholder="เช่น F-CR-103" />
                   </div>
-                  <div>
-                    <label className="pdb-label">ข้อมูลสินค้า <span className="text-red-500">*</span></label>
-                    <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="pdb-input" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  {['รางม่านจีบ-มอร์เตอร์','รางม่านลอน-มอร์เตอร์','รางลอน-กระดุม-มอร์เตอร์','อุปกรณ์เสริมรางม่าน-มอร์เตอร์','อุปกรณ์เสริมม่านม้วน-มอร์เตอร์','มอร์เตอร์ - ม่านม้วน','สวิตช์-มอร์เตอร์-ม่านม้วน','รีโมท','มอร์เตอร์ - มู่ลี่ไม้'].includes(form.category) ? (<>
                     <div>
-                      <label className="pdb-label">หมวด <span className="text-red-500">*</span></label>
-                      <select className="pdb-input" value={form.category} onChange={(e) => set('category', e.target.value)}>
-                        <option value="">-- เลือกหมวด --</option>
-                        {flatMenu.map((m) => {
-                          const row = menu.find((r) => r.id === m.id);
-                          const icon = row?.icon ? row.icon + ' ' : '';
-                          return m.depth === 0
-                            ? <option key={m.id} value="" disabled style={{ fontWeight: 600, color: '#6b7280', background: '#e8eaed' }}>── {icon}{m.label} ──</option>
-                            : <option key={m.id} value={m.label}>{'· '.repeat(m.depth - 1)}{m.label}</option>;
-                        })}
-                      </select>
+                      <div className="flex items-center gap-4 mb-1">
+                        <label className="pdb-label mb-0">ข้อมูลสินค้า <span className="text-red-500">*</span></label>
+                        <div className="flex items-center gap-3 text-sm">
+                          {['RTS','WT'].map(v => (
+                            <label key={v} className="flex items-center gap-1 cursor-pointer">
+                              <input type="radio" name="ptype_sys" checked={form.ptype === v} onChange={() => set('ptype', v)} />
+                              <span className="font-medium" style={{ color: '#1f2937' }}>ระบบ {v}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="pdb-input" />
+                    </div>
+                  </>) : (['มุ้งจีบ-ประตู','มุ้งจีบ-หน้าต่าง'].includes(form.category)) ? (<>
+                    <div>
+                      <div className="flex items-center gap-4 mb-1">
+                        <label className="pdb-label mb-0">ข้อมูลสินค้า <span className="text-red-500">*</span></label>
+                        <div className="flex items-center gap-3 text-sm">
+                          {[
+                            ['บานเดี่ยว (เก็บขวา/เก็บซ้าย)', 'บานเดี่ยว', '(เก็บขวา/เก็บซ้าย)'],
+                            ['บานคู่ (ผ่ากลาง)', 'บานคู่', '(ผ่ากลาง)'],
+                            ['บานอิสระ (เปิด/ปิด-อิสระ)', 'บานอิสระ', '(เปิด/ปิด-อิสระ)'],
+                          ].map(([v, main, sub]) => (
+                            <label key={v} className="flex items-center gap-1 cursor-pointer">
+                              <input type="radio" name="ptype_sys" checked={form.ptype === v} onChange={() => set('ptype', v)} />
+                              <span className="flex flex-col">
+                                <span className="font-medium" style={{ color: '#dc2626', fontSize: 13 }}>{main}</span>
+                                <span style={{ color: '#9ca3af', fontSize: 11 }}>{sub}</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="pdb-input" />
+                    </div>
+                  </>) : (['ผ้าม่าน','ผ้าบุเฟอร์นิเจอร์','รางม่านพับ','อุปกรณ์เสริมรางม่าน-แมนนวล','มู่ลี่อลูมิเนียม','วัสดุ-อุปกรณ์ผ้าม่านทั่วไป','อุปกรณ์เสริม','ตะขอสายรวบม่าน','ด้ามจูง','wall-หน้าแคบ'].includes(form.category)) ? (<>
+                    <div>
+                      <label className="pdb-label">ข้อมูลสินค้า <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="pdb-input" />
+                    </div>
+                  </>) : (['รางโชว์','วัสดุสิ้นเปลือง','พื้น-ลามิเนตส์','ระบบแสงสว่าง','wall-หน้ากว้าง','wall-หน้า w.0.90-0.94cm.','อุปกรณ์สำนักงาน','มู่ลี่ไม้','ม่านม้วน','อุปกรณ์เสริมม่านม้วน-แมนนวล','SUNSCREEN 1%-3%-5%','SUNSCREEN 6%-15%','BLACKOUT','DIMOUT','2LAYER-อื่นๆ'].includes(form.category)) ? (<>
+                    <div>
+                      <label className="pdb-label">ข้อมูลสินค้า <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="pdb-input" />
                     </div>
                     <div>
-                      <label className="pdb-label">ประเภทผ้า</label>
-                      <select className="pdb-input" value={form.ptype} onChange={(e) => set('ptype', e.target.value)}>
-                        <option>ทึบ</option>
-                        <option>โปร่ง</option>
-                        <option>Backout</option>
-                        <option>ซับหลัง</option>
-                      </select>
+                      <label className="pdb-label">รายละเอียด</label>
+                      <textarea className="pdb-input" rows={3} placeholder="รายละเอียดเพิ่มเติม..."
+                        value={form.description} onChange={(e) => set('description', e.target.value)} />
                     </div>
-                  </div>
-                  <div>
-                    <label className="pdb-label">รายละเอียด</label>
-                    <textarea className="pdb-input" rows={3} placeholder="คุณสมบัติพิเศษ, สีผ้า, เทรนด์..."
-                      value={form.description} onChange={(e) => set('description', e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#9ca3af' }}>ราคา + ข้อมูลทางการค้า</div>
-                  <div className="grid grid-cols-2 gap-4">
+                  </>) : (form.category === 'รางม่านจีบ' || form.category === 'รางม่านลอน' || form.category === 'รางลอน-กระดุม') ? (<>
                     <div>
-                      <label className="pdb-label">ราคาขาย <span className="text-red-500">*</span></label>
-                      <div className="relative">
-                        <input type="number" value={form.price} onChange={(e) => set('price', e.target.value)} className="pdb-input pr-12" />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-stone-400">฿</span>
+                      <div className="flex items-center gap-4 mb-1">
+                        <label className="pdb-label mb-0">ข้อมูลสินค้า <span className="text-red-500">*</span></label>
+                        <div className="flex items-center gap-3 text-sm">
+                          {['ระบบ-มือปัด','ระบบ-เชือกดึง'].map(v => (
+                            <label key={v} className="flex items-center gap-1 cursor-pointer">
+                              <input type="radio" name="ptype_sys" checked={form.ptype === v} onChange={() => set('ptype', v)} />
+                              <span className="font-medium" style={{ color: '#1f2937' }}>{v}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="pdb-input" />
+                    </div>
+                  </>) : (<>
+                    <div>
+                      <label className="pdb-label">ข้อมูลสินค้า <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="pdb-input" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="pdb-label">ประเภทผ้า</label>
+                        <select className="pdb-input" value={form.ptype} onChange={(e) => set('ptype', e.target.value)}>
+                          <option>ทึบ</option>
+                          <option>โปร่ง</option>
+                          <option>Backout</option>
+                          <option>ซับหลัง</option>
+                        </select>
                       </div>
                     </div>
                     <div>
-                      <label className="pdb-label">หน่วย <span className="text-red-500">*</span></label>
+                      <label className="pdb-label">รายละเอียด</label>
+                      <textarea className="pdb-input" rows={3} placeholder="คุณสมบัติพิเศษ, สีผ้า, เทรนด์..."
+                        value={form.description} onChange={(e) => set('description', e.target.value)} />
+                    </div>
+                  </>)}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-end gap-2" style={{ justifyContent: 'flex-start' }}>
+                    {(() => {
+                      const WIDTH_ONLY = ['รางม่านจีบ-มอร์เตอร์','รางม่านลอน-มอร์เตอร์','รางลอน-กระดุม-มอร์เตอร์','อุปกรณ์เสริมรางม่าน-มอร์เตอร์','อุปกรณ์เสริมม่านม้วน-มอร์เตอร์','มอร์เตอร์ - มู่ลี่ไม้','รีโมท'];
+                      const WIDTH_MIN  = ['มู่ลี่ไม้','SUNSCREEN 1%-3%-5%','SUNSCREEN 6%-15%','สวิตช์-มอร์เตอร์-ม่านม้วน','BLACKOUT','DIMOUT','2LAYER-อื่นๆ'];
+                      const showWidth = WIDTH_ONLY.includes(form.category) || WIDTH_MIN.includes(form.category);
+                      const isMin = WIDTH_MIN.includes(form.category);
+                      if (!showWidth) return null;
+                      return (
+                        <>
+                          <div style={{ width: 80 }}>
+                            <label className="pdb-label" style={{ color: '#dc2626' }}>{isMin ? 'กว้าง' : 'กว้าง1'}</label>
+                            <input type="text" value={form.width1} onChange={(e) => set('width1', e.target.value)}
+                              className="pdb-input" placeholder="&lt;2M" />
+                          </div>
+                          {!isMin && (
+                          <div style={{ width: 80 }}>
+                            <label className="pdb-label" style={{ color: '#dc2626' }}>กว้าง2</label>
+                            <input type="text" value={form.width2} onChange={(e) => set('width2', e.target.value)}
+                              className="pdb-input" placeholder="2-3M" />
+                          </div>
+                          )}
+                          {isMin && (
+                          <div style={{ width: 80 }}>
+                            <label className="pdb-label" style={{ color: '#dc2626' }}>ขั้นต่ำ</label>
+                            <input type="number" step={1} value={form.reorder_point} onChange={(e) => set('reorder_point', e.target.value)}
+                              className="pdb-input" placeholder="0" />
+                          </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                    <div style={{ width: 120 }}>
+                      <label className="pdb-label" style={{ color: '#dc2626' }}>ราคาขาย <span>*</span></label>
+                      <div className="relative">
+                        <input type="number" step={1} value={form.price} onChange={(e) => set('price', e.target.value)} className="pdb-input pr-12" style={{ textAlign: 'right' }} />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-stone-400">฿</span>
+                      </div>
+                    </div>
+                    <div style={{ width: 110 }}>
+                      <label className="pdb-label" style={{ color: '#dc2626' }}>หน่วย <span>*</span></label>
                       <select className="pdb-input" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
-                        <option>หลา</option><option>เมตร</option><option>SQM</option><option>ชุด</option><option>ตัว</option>
+                        <option>หลา</option><option>เมตร</option><option>SQM</option><option>SQY</option><option>ชุด</option><option>ตัว</option><option>อัน</option>
                       </select>
                     </div>
-                  </div>
-                  <div>
-                    <label className="pdb-label">หน้ากว้างผ้า (P)</label>
-                    <div className="relative">
-                      <input type="number" step={0.01} value={form.face_width} onChange={(e) => set('face_width', e.target.value)} className="pdb-input pr-12" />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-stone-400">m</span>
+                    <div style={{ width: 120 }}>
+                      <label className="pdb-label" style={{ color: '#dc2626' }}>ราคาซื้อ</label>
+                      <div className="relative">
+                        <input type="number" step={1} value={form.cost_price} onChange={(e) => set('cost_price', e.target.value)} className="pdb-input pr-8" style={{ textAlign: 'right' }} />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-stone-400">฿</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  {['รางม่านจีบ-มอร์เตอร์','รางม่านลอน-มอร์เตอร์','รางลอน-กระดุม-มอร์เตอร์','อุปกรณ์เสริมรางม่าน-มอร์เตอร์','อุปกรณ์เสริมม่านม้วน-มอร์เตอร์','มอร์เตอร์ - ม่านม้วน','สวิตช์-มอร์เตอร์-ม่านม้วน','รีโมท','มอร์เตอร์ - มู่ลี่ไม้'].includes(form.category) ? (<>
                     <div>
-                      <label className="pdb-label">ขั้นต่ำสั่งซื้อ</label>
-                      <input type="number" step={0.1} value={form.reorder_point} onChange={(e) => set('reorder_point', e.target.value)} className="pdb-input" />
+                      <label className="pdb-label">สถานะ</label>
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                        {([
+                          ['active',       '✓ ปกติ',          '#D1F2D7', '#166534'],
+                          ['paused',       '⏸️ พักขาย',       '#FEF3C7', '#92400E'],
+                          ['discontinued', '✕ สินค้ายกเลิก', '#FFE5E5', '#8B1F1F'],
+                          ['boq_used',     '📋 ใช้งานใน BOQ','#DBEAFE', '#1e40af'],
+                        ] as [string,string,string,string][]).map(([v, l, bg, col]) => (
+                          <label key={v} className="flex items-center gap-1 cursor-pointer rounded-lg px-2 py-1.5 text-xs font-medium transition-all whitespace-nowrap"
+                            style={{
+                              background: form.status === v ? bg : '#f9fafb',
+                              color: form.status === v ? col : '#6b7280',
+                              border: `1.5px solid ${form.status === v ? col : '#e5e7eb'}`,
+                            }}>
+                            <input type="radio" name="status" className="hidden" checked={form.status === v} onChange={() => set('status', v)} />
+                            {l}
+                          </label>
+                        ))}
+                      </div>
                     </div>
+                  </>) : (
                     <div>
-                      <label className="pdb-label">Supplier</label>
-                      <select className="pdb-input" value={form.supplier} onChange={(e) => set('supplier', e.target.value)}>
-                        <option value="">-- เลือก --</option>
-                        <option>SMILE Design</option>
-                        <option>SOMFY Thailand</option>
-                        <option>Decorail Co.</option>
-                        <option>Hunter Douglas TH</option>
-                      </select>
+                      <label className="pdb-label">สถานะ</label>
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                        {([
+                          ['active',       '✓ ปกติ',          '#D1F2D7', '#166534'],
+                          ['paused',       '⏸️ พักขาย',       '#FEF3C7', '#92400E'],
+                          ['discontinued', '✕ สินค้ายกเลิก', '#FFE5E5', '#8B1F1F'],
+                          ['boq_used',     '📋 ใช้งานใน BOQ','#DBEAFE', '#1e40af'],
+                        ] as [string,string,string,string][]).map(([v, l, bg, col]) => (
+                          <label key={v} className="flex items-center gap-1 cursor-pointer rounded-lg px-2 py-1.5 text-xs font-medium transition-all whitespace-nowrap"
+                            style={{
+                              background: form.status === v ? bg : '#f9fafb',
+                              color: form.status === v ? col : '#6b7280',
+                              border: `1.5px solid ${form.status === v ? col : '#e5e7eb'}`,
+                            }}>
+                            <input type="radio" name="status" className="hidden" checked={form.status === v} onChange={() => set('status', v)} />
+                            {l}
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="pdb-label">สถานะ</label>
-                    <div className="flex gap-3">
-                      {[['active', '✓ ใช้งาน'], ['paused', '⏸️ พักขาย'], ['discontinued', '✕ หยุดขาย']].map(([v, l]) => (
-                        <label key={v} className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" name="status" checked={form.status === v} onChange={() => set('status', v)} />
-                          <span className="text-sm">{l}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+                  )}
+                  {!['ผ้าม่าน','ผ้าบุเฟอร์นิเจอร์','รางม่านจีบ-มอร์เตอร์','รางม่านลอน-มอร์เตอร์','รางลอน-กระดุม-มอร์เตอร์','อุปกรณ์เสริมรางม่าน-มอร์เตอร์','อุปกรณ์เสริมม่านม้วน-มอร์เตอร์','มอร์เตอร์ - ม่านม้วน','สวิตช์-มอร์เตอร์-ม่านม้วน','รีโมท','มอร์เตอร์ - มู่ลี่ไม้','มู่ลี่อลูมิเนียม','วัสดุ-อุปกรณ์ผ้าม่านทั่วไป','อุปกรณ์เสริม','รางม่านจีบ','รางม่านลอน','รางลอน-กระดุม','รางม่านพับ','รางโชว์','มุ้งจีบ-ประตู','มุ้งจีบ-หน้าต่าง','อุปกรณ์เสริมรางม่าน-แมนนวล','ตะขอสายรวบม่าน','ด้ามจูง','wall-หน้าแคบ'].includes(form.category) && (
                   <div>
                     <label className="pdb-label">รูปสินค้า</label>
-                    <div className="border-2 border-dashed border-stone-300 rounded-lg p-6 text-center">
-                      <div className="text-3xl mb-2">📷</div>
-                      <div className="text-sm text-stone-600">ลากรูปมาวาง หรือคลิกเพื่อเลือก</div>
-                      <div className="text-xs text-stone-400 mt-1">JPG, PNG ขนาดไม่เกิน 5MB</div>
+                    <div className="border-2 border-dashed border-stone-300 rounded-lg p-3 text-center">
+                      <div className="text-lg mb-1">📷</div>
+                      <div className="text-xs text-stone-600">ลากรูปมาวาง หรือคลิกเพื่อเลือก</div>
+                      <div className="text-xs text-stone-400">JPG, PNG ขนาดไม่เกิน 5MB</div>
                     </div>
                   </div>
+                  )}
                 </div>
+                {['ผ้าม่าน','ผ้าบุเฟอร์นิเจอร์','รางม่านจีบ-มอร์เตอร์','รางม่านลอน-มอร์เตอร์','รางลอน-กระดุม-มอร์เตอร์','อุปกรณ์เสริมรางม่าน-มอร์เตอร์','อุปกรณ์เสริมม่านม้วน-มอร์เตอร์','มอร์เตอร์ - ม่านม้วน','สวิตช์-มอร์เตอร์-ม่านม้วน','รีโมท','มอร์เตอร์ - มู่ลี่ไม้','มู่ลี่อลูมิเนียม','วัสดุ-อุปกรณ์ผ้าม่านทั่วไป','อุปกรณ์เสริม','รางม่านจีบ','รางม่านลอน','รางลอน-กระดุม','รางม่านพับ','รางโชว์','มุ้งจีบ-ประตู','มุ้งจีบ-หน้าต่าง','อุปกรณ์เสริมรางม่าน-แมนนวล','ตะขอสายรวบม่าน','ด้ามจูง','wall-หน้าแคบ'].includes(form.category) && (
+                  <div className="col-span-2 grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="pdb-label">รายละเอียด</label>
+                      <textarea className="pdb-input" rows={3} placeholder="คุณสมบัติพิเศษ, สีผ้า, เทรนด์..."
+                        value={form.description} onChange={(e) => set('description', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="pdb-label">รูปสินค้า</label>
+                      <div className="border-2 border-dashed border-stone-300 rounded-lg p-3 text-center">
+                        <div className="text-lg mb-1">📷</div>
+                        <div className="text-xs text-stone-600">ลากรูปมาวาง หรือคลิกเพื่อเลือก</div>
+                        <div className="text-xs text-stone-400">JPG, PNG ขนาดไม่เกิน 5MB</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-stone-100">

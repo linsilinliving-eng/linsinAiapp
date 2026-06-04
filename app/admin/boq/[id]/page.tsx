@@ -59,6 +59,102 @@ const ITEM_FIELDS: (keyof BoqRow)[] = ['faceW','unitPrice','qty','price','discou
 
 const toNum = (s?: string) => { if (!s) return 0; const n = parseFloat(s.replace(/,/g,'').replace(/[^0-9.-]/g,'')); return Number.isFinite(n) ? n : 0; };
 
+/* strip trailing .00 from stored number strings */
+const stripDec = (s?: string) => (s && s !== '—') ? s.replace(/\.00$/, '') : s;
+
+/* re-format to exactly 2 decimal places */
+const toDec2 = (s?: string) => {
+  if (!s || s === '—' || s === '0') return s;
+  const neg = s.startsWith('-');
+  const n = parseFloat(s.replace(/[^0-9.]/g, ''));
+  if (!isFinite(n)) return s;
+  const out = n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return neg ? `-${out}` : out;
+};
+
+/* ── formula config types ── */
+interface DbFormulaType {
+  type_id: string; formula_group: string;
+  formula_p: number|null; formula_h: number|null; formula_eff: number|null;
+  face_width: number|null;
+}
+
+/* ── recalculate qty / price / net / total for a single row ── */
+const TYPE_LABEL_TO_ID: Record<string, string> = {
+  'ม่านลอน-กระดุม': 'sfold', 'ม่านจีบ': 'wave', 'ม่านลอน': 'lon',
+  'ม่านพับ': 'roman', 'ม่านม้วน': 'roller', 'มู่ลี่ไม้': 'wood', 'มุ้งจีบ': 'net',
+  'ม่านถุง': 'bay', 'ม่าน รพ.': 'hospital',
+};
+const DIR_LABEL: Record<string, string> = { 'ผ่ากลาง':'center','เก็บซ้าย':'left','เก็บขวา':'right','ดึงซ้าย':'left','ดึงขวา':'right' };
+
+function recalcRow(row: BoqRow, formulaTypes: DbFormulaType[] = []): Partial<BoqRow> {
+  const sm = (row.size ?? '').match(/W\.([0-9.]+).*H\.([0-9.]+)/);
+  if (!sm) return {};
+  const w = parseFloat(sm[1]);
+  const h = parseFloat(sm[2]);
+  if (!(w > 0) || !(h > 0)) return {};
+
+  const parts = (row.desc ?? '').split('|');
+  const desc0 = parts[0]?.trim() ?? '';
+  const dir0  = parts[1]?.trim() ?? '';
+
+  /* detect type_id from label */
+  const labelKeys = Object.keys(TYPE_LABEL_TO_ID).sort((a, b) => b.length - a.length);
+  let typeId = '';
+  for (const k of labelKeys) { if (desc0.includes(k)) { typeId = TYPE_LABEL_TO_ID[k]; break; } }
+
+  /* get DB config for this type */
+  const cfg = formulaTypes.find(t => t.type_id === typeId);
+  const formula = cfg?.formula_group ?? (typeId === 'sfold' ? 'sfold' : typeId === 'lon' || typeId === 'wave' || typeId === 'bay' || typeId === 'hospital' ? 'wave' : 'sqy');
+
+  const loomW = parseFloat(row.faceW ?? '') || Number(cfg?.face_width) || (formula === 'sfold' ? 1.4 : 1.2);
+  const panelsMatch = (row.qty ?? '').match(/\((\d+)\s*หน้า\)/);
+  const panelsNum = panelsMatch ? parseInt(panelsMatch[1]) : 2;
+
+  let qty = 0;
+  if (formula === 'sfold') {
+    const pMult = Number(cfg?.formula_p)   || 2.5;
+    const hAdd  = Number(cfg?.formula_h)   || 0.3;
+    const eff   = Number(cfg?.formula_eff) || 0.9;
+    const Q = (w * pMult) / loomW;
+    const R = h + hAdd;
+    qty = (Q * R / eff) + panelsNum;
+  } else if (formula === 'wave') {
+    const hAdd = Number(cfg?.formula_h)   || 0.5;
+    const eff  = Number(cfg?.formula_eff) || 0.9144;
+    qty = (w * loomW * (h + hAdd)) / eff + panelsNum;
+  } else {
+    const mult = Number(cfg?.formula_p) || 1.196;
+    qty = w * h * mult;
+  }
+  const unit = formula === 'sqy' ? 'sqy' : 'yd';
+  const qtyLabel = `${qty.toFixed(2)} ${unit}`;
+
+  const upNum = toNum(row.unitPrice);
+  const rawPrice = qty * upNum;
+  const priceN = toNum(row.price);
+  const discN   = toNum(row.discount);
+  const discPct = priceN > 0 && discN > 0 ? discN / priceN : 0.30;
+  const discNum = rawPrice * discPct;
+  const net     = rawPrice - discNum;
+
+  const railN   = toNum(row.rail);
+  const sewN    = toNum(row.sewing);
+  const instN   = toNum(row.install);
+  const motN    = toNum(row.motor);
+  const hasCombos = sewN > 0 || instN > 0;
+  const total   = hasCombos ? net + railN + sewN + instN : net + railN + motN;
+
+  const f2r = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return {
+    qty: qtyLabel,
+    price:    f2r(rawPrice),
+    discount: discNum > 0 ? `-${f2r(discNum)}` : '0',
+    net:      f2r(net),
+    total:    f2r(total),
+  };
+}
+
 /* convert DB row → BoqRow */
 function dbToRow(r: any): BoqRow {
   return {
@@ -70,19 +166,19 @@ function dbToRow(r: any): BoqRow {
     desc: r.desc_text ?? undefined,
     code: r.code ?? undefined,
     faceW: r.face_w ?? undefined,
-    unitPrice: r.unit_price ?? undefined,
+    unitPrice: stripDec(r.unit_price ?? undefined),
     qty: r.qty ?? undefined,
-    price: r.price ?? undefined,
-    discount: r.discount_val ?? undefined,
-    net: r.net ?? undefined,
-    rail: r.rail ?? undefined,
-    motor: r.motor ?? undefined,
+    price: toDec2(r.price ?? undefined),
+    discount: toDec2(r.discount_val ?? undefined),
+    net: toDec2(r.net ?? undefined),
+    rail: stripDec(r.rail ?? undefined),
+    motor: stripDec(r.motor ?? undefined),
     c13: r.c13 ?? undefined,
     hook: r.hook ?? undefined,
-    sewing: r.sewing ?? undefined,
-    install: r.install_val ?? undefined,
+    sewing: stripDec(r.sewing ?? undefined),
+    install: stripDec(r.install_val ?? undefined),
     unit: r.unit ?? undefined,
-    total: r.total ?? undefined,
+    total: toDec2(r.total ?? undefined),
   };
 }
 const fmt = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -110,6 +206,7 @@ export default function BoqDocPage() {
   const [saving, setSaving] = useState(false);
 
   const [rows, setRows] = useState<BoqRow[]>([]);
+  const [formulaTypes, setFormulaTypes] = useState<DbFormulaType[]>([]);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const undoStack = useRef<UndoEntry[]>([]);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -166,7 +263,7 @@ export default function BoqDocPage() {
       })
       .catch(() => setLoadingDoc(false));
 
-    /* load saved rows — set directly, no triggerSave */
+    /* load saved rows */
     fetch(`/api/boq/${id}/items`)
       .then(r => r.json())
       .then((items: any[]) => {
@@ -177,6 +274,12 @@ export default function BoqDocPage() {
         }
       })
       .catch(() => {/* ignore */});
+
+    /* load formula config */
+    fetch('/api/formula-config')
+      .then(r => r.json())
+      .then((d: any) => { if (Array.isArray(d.types)) setFormulaTypes(d.types); })
+      .catch(() => {/* use hardcoded fallback */});
   }, [id]);
 
   /* save status */
@@ -270,16 +373,16 @@ export default function BoqDocPage() {
   const clearRow = async (rowId: string) => {
     const { isConfirmed } = await swalConfirm('ล้างข้อมูลแถวนี้?', 'ข้อมูลทั้งหมดในแถวจะถูกล้าง (ยกเว้น UNDO)');
     if (!isConfirmed) return;
+    pushUndo({ action: 'snapshot', rows });
     setRows(p => {
       const i = p.findIndex(r => r.id === rowId);
       if (i < 0) return p;
-      pushUndo({ action: 'snapshot', rows: p });
       const src = p[i];
       const cleared: BoqRow =
         src.type === 'heading' ? { id: src.id, type: 'heading', text: '' } :
         src.type === 'note'    ? { id: src.id, type: 'note',    text: '' } :
         src.type === 'retail'  ? { ...R('', '', '', '', '', '', '—', 'ตัว', ''), id: src.id } :
-                                 { ...I('', '', '', '', '', '', '', '', '', '', '—', '—', 'ชุด', ''), id: src.id };
+                                 { ...I('', '', '', '', '', '', '', '', '', '', '—', '—', 'ชุด', ''), id: src.id, c13: '', hook: '' };
       const next = [...p];
       next[i] = cleared;
       return next;
@@ -392,7 +495,7 @@ export default function BoqDocPage() {
             <table className="boq">
               <colgroup>
                 <col style={{ width: 96 }} /><col style={{ width: 38 }} />
-                <col style={{ width: 168 }} /><col />
+                <col style={{ width: 110 }} /><col />
                 <col style={{ width: 40 }} /><col style={{ width: 56 }} />
                 <col style={{ width: 58 }} /><col style={{ width: 70 }} />
                 <col style={{ width: 70 }} /><col style={{ width: 78 }} />

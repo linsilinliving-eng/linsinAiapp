@@ -29,7 +29,14 @@
       "Bash(curl -s \"http://localhost:3000/api/products?category=%F0%9F%A7%B5%20%E0%B8%9C%E0%B9%89%E0%B8%B2%E0%B8%A1%E0%B9%88%E0%B8%B2%E0%B8%99%20%E0%B8%97%E0%B8%B6%E0%B8%9A-%E0%B9%82%E0%B8%9B%E0%B8%A3%E0%B9%88%E0%B8%87&limit=500\")",
       "Bash(node -e \"const k=require\\('knex'\\)\\(require\\('./knexfile'\\).development\\); k\\('sewing_combos'\\).where\\('type_id','sfold'\\).select\\('combo_key','system','sewing_rate','height_min','height_max'\\).orderBy\\('sort_order'\\).then\\(r=>{console.table\\(r\\);k.destroy\\(\\)}\\)\")",
       "Bash(npx tsc *)",
-      "PowerShell(Get-ChildItem \"c:\\\\myapp\\\\migrations\\\\\" | Sort-Object Name | Select-Object -Last 10 | ForEach-Object { $_.Name })"
+      "PowerShell(Get-ChildItem \"c:\\\\myapp\\\\migrations\\\\\" | Sort-Object Name | Select-Object -Last 10 | ForEach-Object { $_.Name })",
+      "Bash(node -e \"const html = require\\('fs'\\).readFileSync\\('public/boq/BOQ680315.html','utf8'\\); const m = html.match\\(/function[\\\\s\\\\S]{0,3000}panels[\\\\s\\\\S]{0,500}/\\); if\\(m\\) console.log\\(m[0].slice\\(0,3000\\)\\);\")",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:3000/api/formula-config/types\" -UseBasicParsing)",
+      "PowerShell(Start-Sleep -Seconds 8; Invoke-WebRequest -Uri \"http://localhost:3000/api/formula-config/types\" -UseBasicParsing | Select-Object -ExpandProperty Content | ConvertFrom-Json | ForEach-Object { \"$\\($_.type_id\\) | $\\($_.formula_group\\)\" })",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:3000\" -UseBasicParsing -TimeoutSec 5)",
+      "Read(//c/xampp/mysql/backup/**)",
+      "Read(//c/xampp/mysql/data/**)",
+      "Bash(claude auth *)"
     ],
     "additionalDirectories": [
       "c:\\myapp"

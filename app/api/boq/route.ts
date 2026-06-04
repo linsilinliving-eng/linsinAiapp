@@ -104,9 +104,9 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10)));
 
-    const applyFilters = (q2: typeof db, sq: string, yr: string, mo: string, st: string) => {
+    const applyFilters = (q2: any, sq: string, yr: string, mo: string, st: string) => {
       if (sq) {
-        q2 = q2.where((b: typeof db) =>
+        q2 = q2.where((b: any) =>
           b.whereILike('boq_number', `%${sq}%`)
             .orWhereILike('customer_name', `%${sq}%`)
             .orWhereILike('project_name', `%${sq}%`)

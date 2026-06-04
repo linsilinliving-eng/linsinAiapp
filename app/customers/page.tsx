@@ -55,7 +55,7 @@ const CSS = `
 .cdb-brand-name{font-size:14px;font-weight:700;color:#1f2937}
 .cdb-brand-sub{font-size:12px;color:#6b7280}
 .cdb-nav{padding:10px 0;flex:1}
-.cdb-nav-section{padding:6px 18px 3px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af}
+.cdb-nav-section{padding:6px 18px 3px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af}
 .cdb-nav-item{display:block;padding:8px 18px;font-size:15px;color:#374151;text-decoration:none;
   border-left:3px solid transparent;transition:all .15s;cursor:pointer}
 .cdb-nav-item:hover{background:#f0f1f3;color:#111827;border-left-color:#374151}
@@ -80,34 +80,34 @@ const CSS = `
 .cdb-select:focus{border-color:#374151;outline:none}
 .cdb-btn-primary{
   background:#1f2937;color:#fff;border:none;border-radius:8px;
-  padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;
+  padding:11px 22px;font-size:15px;font-weight:600;cursor:pointer;
   display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit;transition:background .15s;
 }
 .cdb-btn-primary:hover{background:#111827}
-.cdb-card-list{display:flex;flex-direction:column;gap:10px}
+.cdb-card-list{display:flex;flex-direction:column;gap:3px}
 .cdb-card{
-  background:#fff;border:1px solid #e2e4e9;border-radius:12px;
-  padding:14px 18px;transition:box-shadow .15s,border-color .15s;
+  background:#fff;border:1px solid #e2e4e9;border-radius:8px;
+  padding:5px 12px;transition:box-shadow .15s,border-color .15s;
 }
-.cdb-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);border-color:#d1d5db}
-.cdb-card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
-.cdb-card-codes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.cdb-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.07);border-color:#d1d5db}
+.cdb-card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:2px}
+.cdb-card-codes{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:2px}
 .cdb-code{
   background:#f0f1f3;color:#374151;border:1px solid #d1d5db;
-  border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;font-family:monospace;
+  border-radius:4px;padding:2px 8px;font-size:15px;font-weight:700;font-family:monospace;
 }
-.cdb-badge-vip{background:#fef9c3;color:#854d0e;border:1px solid #fbbf24;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700}
-.cdb-badge-normal{background:#f0f1f3;color:#6b7280;border:1px solid #e2e4e9;border-radius:4px;padding:2px 8px;font-size:11px}
-.cdb-badge-watch{background:#fdecea;color:#c0392b;border:1px solid #fca5a5;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700}
-.cdb-badge-inactive{background:#f0f1f3;color:#9ca3af;border:1px solid #e2e4e9;border-radius:4px;padding:2px 7px;font-size:11px}
-.cdb-card-name{font-size:15px;font-weight:700;color:#111827;flex:1}
-.cdb-card-sub{font-size:13px;color:#6b7280;margin-bottom:3px}
-.cdb-card-info{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:#374151;margin-top:6px}
-.cdb-card-info-item{display:flex;align-items:center;gap:5px}
-.cdb-card-actions{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f0f1f3}
+.cdb-badge-vip{background:#fef9c3;color:#854d0e;border:1px solid #fbbf24;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700}
+.cdb-badge-normal{background:#f0f1f3;color:#6b7280;border:1px solid #e2e4e9;border-radius:4px;padding:1px 6px;font-size:11px}
+.cdb-badge-watch{background:#fdecea;color:#c0392b;border:1px solid #fca5a5;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700}
+.cdb-badge-inactive{background:#f0f1f3;color:#9ca3af;border:1px solid #e2e4e9;border-radius:4px;padding:1px 5px;font-size:11px}
+.cdb-card-name{font-size:14px;font-weight:700;color:#111827;flex:1}
+.cdb-card-sub{font-size:12px;color:#6b7280;margin-bottom:1px}
+.cdb-card-info{display:flex;flex-wrap:wrap;gap:10px;font-size:14px;color:#374151;margin-top:2px}
+.cdb-card-info-item{display:flex;align-items:center;gap:4px}
+.cdb-card-actions{display:flex;gap:6px;margin-top:4px;padding-top:4px;border-top:1px solid #f0f1f3}
 .cdb-btn-sm{
   border:1px solid #e2e4e9;background:#fafafa;border-radius:6px;
-  padding:5px 12px;font-size:12px;cursor:pointer;color:#374151;font-family:inherit;transition:all .15s;
+  padding:3px 10px;font-size:12px;cursor:pointer;color:#374151;font-family:inherit;transition:all .15s;
 }
 .cdb-btn-sm:hover{background:#f0f1f3;border-color:#c4c8d0}
 .cdb-btn-sm.danger:hover{background:#fdecea;color:#c0392b;border-color:#fca5a5}
@@ -144,7 +144,7 @@ export default function CustomersPage() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [perPage, setPerPage] = useState(30);
 
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const load = useCallback(async (pg = 1, search = q, pp = perPage) => {
     setLoading(true);
@@ -181,9 +181,44 @@ export default function CustomersPage() {
   const vipCount = rows.filter(r => r.sales_grade === 'VIP').length;
   const watchCount = rows.filter(r => r.service_flag === 'watch').length;
 
+  const handleExport = async () => {
+    const XLSX = await import('xlsx');
+    // ดึงข้อมูลทั้งหมด (ไม่จำกัดหน้า)
+    const params = new URLSearchParams({ page: '1', limit: '9999', status: statusFilter });
+    if (q) params.set('q', q);
+    if (typeFilter) params.set('type', typeFilter);
+    if (gradeFilter) params.set('grade', gradeFilter);
+    const res = await fetch(`/api/customers?${params}`);
+    const data = await res.json();
+    const exportRows = (data.rows || []) as CustomerRow[];
+
+    const wsData = [
+      ['รหัส', 'ประเภท', 'ชื่อลูกค้า', 'ที่อยู่', 'แขวง/ตำบล', 'เขต/อำเภอ', 'จังหวัด', 'ผู้ติดต่อ', 'เบอร์โทร', 'Grade', 'สถานะ'],
+      ...exportRows.map(r => [
+        r.cus_code,
+        r.cus_type === 'company' ? 'นิติบุคคล' : 'บุคคล',
+        r.cus_name,
+        r.address_line1 || '',
+        (r as any).sub_district || '',
+        r.district || '',
+        r.province || '',
+        r.contact_name || '',
+        r.contact_phone || '',
+        r.sales_grade,
+        r.status,
+      ]),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [8,6,30,30,12,12,12,15,14,6,8].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ลูกค้า');
+    XLSX.writeFile(wb, `customers_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
   const fmtAddress = (r: CustomerRow) => {
-    const parts = [r.district, r.province].filter(Boolean);
-    return parts.length ? parts.join(', ') : r.address_line1 || '—';
+    const parts = [r.address_line1, r.district, r.province].filter(Boolean);
+    return parts.length ? parts.join(' ') : '—';
   };
 
   const fmtRoles = (rolesJson: string | null) => {
@@ -210,31 +245,36 @@ export default function CustomersPage() {
             <a className="cdb-nav-item active" onClick={() => load(1)}>👥 รายการลูกค้า</a>
             <a className="cdb-nav-item" onClick={() => router.push('/customers/new')}>➕ เพิ่มลูกค้าใหม่</a>
             <div className="cdb-nav-section">ลิงก์ด่วน</div>
-            <a className="cdb-nav-item" onClick={() => router.push('/products')}>📦 ฐานข้อมูลสินค้า</a>
-            <a className="cdb-nav-item" onClick={() => router.push('/admin/boq')}>📋 BOQ</a>
             <a className="cdb-nav-item" onClick={() => router.push('/admin')}>🏠 แดชบอร์ด</a>
+            <a className="cdb-nav-item" onClick={() => router.push('/products')}>📦 ฐานข้อมูลสินค้า</a>
+            <a className="cdb-nav-item" onClick={() => router.push('/admin/boq')}>📋 BOQ-ใบประมาณราคา</a>
           </nav>
         </aside>
 
         {/* Main */}
         <main className="cdb-main">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          {/* Stats */}
+          <div className="cdb-stat-bar">
+            <div className="cdb-stat"><div className="num">{total}</div><div className="lbl">ลูกค้าทั้งหมด</div></div>
+            <div className="cdb-stat"><div className="num" style={{ color: '#854d0e' }}>{vipCount}</div><div className="lbl">VIP (หน้านี้)</div></div>
+            <div className="cdb-stat"><div className="num" style={{ color: '#c0392b' }}>{watchCount}</div><div className="lbl">⚠️ ระวัง (หน้านี้)</div></div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 10px' }}>
             <div>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1f2937', margin: 0 }}>รายการลูกค้า</h1>
               <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>
                 ทั้งหมด {total.toLocaleString()} ราย
               </div>
             </div>
-            <button className="cdb-btn-primary" onClick={() => router.push('/customers/new')}>
-              + เพิ่มลูกค้า
-            </button>
-          </div>
-
-          {/* Stats */}
-          <div className="cdb-stat-bar">
-            <div className="cdb-stat"><div className="num">{total}</div><div className="lbl">ลูกค้าทั้งหมด</div></div>
-            <div className="cdb-stat"><div className="num" style={{ color: '#854d0e' }}>{vipCount}</div><div className="lbl">VIP (หน้านี้)</div></div>
-            <div className="cdb-stat"><div className="num" style={{ color: '#c0392b' }}>{watchCount}</div><div className="lbl">⚠️ ระวัง (หน้านี้)</div></div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="cdb-btn-primary" style={{ background: '#166534', fontSize: 16, padding: '11px 10px' }} onClick={handleExport}>
+                📥 Export Excel
+              </button>
+              <button className="cdb-btn-primary" onClick={() => router.push('/customers/new')}>
+                + เพิ่มลูกค้า
+              </button>
+            </div>
           </div>
 
           {/* Toolbar */}
@@ -301,45 +341,42 @@ export default function CustomersPage() {
                 <div key={r.id} className="cdb-card">
                   <div className="cdb-card-top">
                     <div style={{ flex: 1 }}>
-                      <div className="cdb-card-codes">
-                        <span className="cdb-code">{r.cus_code}</span>
-                        <span className="cdb-code">{r.category_code}</span>
-                        {r.sales_grade === 'VIP' && <span className="cdb-badge-vip">VIP</span>}
-                        {r.service_flag === 'watch' && <span className="cdb-badge-watch">⚠️ ระวัง</span>}
-                        {r.status !== 'active' && (
-                          <span className="cdb-badge-inactive">{r.status === 'inactive' ? 'ไม่ใช้งาน' : 'บล็อก'}</span>
-                        )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="cdb-card-name" style={{ flex: 1 }}>{r.cus_name}{r.nickname ? ` (${r.nickname})` : ''}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 2 }}>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <span className="cdb-code">{r.cus_code}</span>
+                            <span className="cdb-code">{r.category_code}</span>
+                            {r.sales_grade === 'VIP' && <span className="cdb-badge-vip">VIP</span>}
+                            {r.service_flag === 'watch' && <span className="cdb-badge-watch">⚠️ ระวัง</span>}
+                            {r.status !== 'active' && (
+                              <span className="cdb-badge-inactive">{r.status === 'inactive' ? 'ไม่ใช้งาน' : 'บล็อก'}</span>
+                            )}
+                          </div>
+                          {r.business_type && <div style={{ fontSize: 11, color: '#6b7280' }}>{r.business_type}</div>}
+                        </div>
                       </div>
-                      <div className="cdb-card-name">{r.cus_name}{r.nickname ? ` (${r.nickname})` : ''}</div>
-                      <div className="cdb-card-sub">{r.business_type || '—'}</div>
                     </div>
-                    <div style={{ textAlign: 'right', fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>
+                    <div style={{ textAlign: 'right', fontSize: 14, color: '#9ca3af', flexShrink: 0, whiteSpace: 'nowrap' }}>
                       {r.cus_type === 'company' ? 'นิติบุคคล' : 'บุคคล'}
-                      <div style={{ marginTop: 4, fontWeight: 600, color: '#6b7280', fontSize: 12 }}>
+                      <span style={{ marginLeft: 4, fontWeight: 600, color: '#6b7280', fontSize: 12 }}>
                         #{(page - 1) * perPage + idx + 1}
-                      </div>
+                      </span>
                     </div>
                   </div>
 
-                  <div className="cdb-card-info">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
                     {(r.province || r.address_line1) && (
-                      <span className="cdb-card-info-item">
-                        <span>📍</span>
-                        <span>{fmtAddress(r)}</span>
-                      </span>
+                      <div className="cdb-card-info">
+                        <span className="cdb-card-info-item"><span>📍</span><span>{fmtAddress(r)}</span></span>
+                        {r.credit_day > 0 && <span className="cdb-card-info-item"><span>💳</span><span>เครดิต {r.credit_day} วัน</span></span>}
+                      </div>
                     )}
                     {r.contact_name && (
-                      <span className="cdb-card-info-item">
-                        <span>👤</span>
-                        <span>{r.contact_name} {fmtRoles(r.contact_roles)}</span>
-                        {r.contact_phone && <span>· 📞 {r.contact_phone}</span>}
-                      </span>
-                    )}
-                    {r.credit_day > 0 && (
-                      <span className="cdb-card-info-item">
-                        <span>💳</span>
-                        <span>เครดิต {r.credit_day} วัน</span>
-                      </span>
+                      <div className="cdb-card-info">
+                        <span className="cdb-card-info-item"><span>👤</span><span>{r.contact_name} {fmtRoles(r.contact_roles)}</span></span>
+                        {r.contact_phone && <span className="cdb-card-info-item"><span>📞</span><span>{r.contact_phone}</span></span>}
+                      </div>
                     )}
                   </div>
 

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
         'c.id', 'c.cus_code', 'c.category_code', 'c.cus_type', 'c.cus_name',
         'c.nickname', 'c.business_type', 'c.sales_grade', 'c.service_flag',
         'c.status', 'c.credit_day', 'c.source_channels', 'c.created_at',
-        'a.address_line1', 'a.district', 'a.province',
+        'a.address_line1', 'a.sub_district', 'a.district', 'a.province',
         'ct.full_name as contact_name', 'ct.phone1 as contact_phone',
         'ct.roles as contact_roles',
       )
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       .whereNull('deleted_at')
       .count('id as n').first();
 
-    const rows = await query.orderBy('c.cus_code', 'asc').limit(limit).offset((page - 1) * limit);
+    const rows = await query.orderBy('c.id', 'desc').limit(limit).offset((page - 1) * limit);
 
     return NextResponse.json({ rows, total: Number((total as any)?.n ?? 0), page, limit });
   } catch (e: any) {

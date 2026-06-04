@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const limit = limitParam ? parseInt(limitParam, 10) : null;
 
     let query = db('products')
-      .select('id', 'code', 'name', 'category', 'ptype', 'price', 'unit', 'face_width', 'status', 'description', 'supplier')
+      .select('id', 'code', 'name', 'category', 'ptype', 'price', 'unit', 'face_width', 'status', 'description', 'supplier', 'width1', 'width2')
       .where('status', 'active');
 
     if (category) query = query.where('category', category);

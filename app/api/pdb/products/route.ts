@@ -6,8 +6,8 @@ export async function GET() {
   try {
     const rows = await db('products')
       .select(
-        'id', 'code', 'name', 'name_en', 'category', 'ptype', 'price',
-        'unit', 'face_width', 'reorder_point', 'supplier', 'status', 'description',
+        'id', 'code', 'name', 'name_en', 'category', 'ptype', 'price', 'cost_price',
+        'unit', 'face_width', 'reorder_point', 'supplier', 'status', 'description', 'width1', 'width2',
       )
       .orderBy('id', 'desc');
     return NextResponse.json(rows);
@@ -35,12 +35,15 @@ export async function POST(req: NextRequest) {
       category: b.category || null,
       ptype: b.ptype || null,
       price: num(b.price) ?? 0,
+      cost_price: num(b.cost_price),
       unit: b.unit || 'ชิ้น',
       face_width: num(b.face_width),
       reorder_point: num(b.reorder_point),
       supplier: b.supplier || null,
       status: b.status || 'active',
       description: b.description || null,
+      width1: b.width1 || null,
+      width2: b.width2 || null,
     });
 
     return NextResponse.json({ id }, { status: 201 });

@@ -2,10 +2,18 @@ import knex, { Knex } from 'knex';
 import { config } from './config';
 import moment from 'moment';
 
+/* global singleton — prevents connection leak on Next.js hot-reload */
+declare global {
+  // eslint-disable-next-line no-var
+  var _knexInstance: Knex | undefined;
+}
+
 const configKnex: { [key: string]: Knex.Config } = {
   development: {
     client: 'mysql2',
     pool: {
+      min: 1,
+      max: 5,
       afterCreate: (conn: any, done: any) => {
         conn.query('SET NAMES utf8mb4', (err: any) => done(err, conn));
       },
@@ -54,6 +62,8 @@ const configKnex: { [key: string]: Knex.Config } = {
 
 const environment = process.env.NODE_ENV || 'development';
 const knexConfig = configKnex[environment] || configKnex['development'];
-const db = knex(knexConfig);
+
+const db = globalThis._knexInstance ?? knex(knexConfig);
+if (process.env.NODE_ENV !== 'production') globalThis._knexInstance = db;
 
 export default db;
