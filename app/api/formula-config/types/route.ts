@@ -14,7 +14,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { type_id, face_width, height_threshold, rail_cat_motor, rail_cat_manual, formula_group, formula_p, formula_h, formula_eff, sort_order } = body;
+    const { type_id, type_label, face_width, height_threshold, rail_cat_motor, rail_cat_manual, formula_group, formula_p, formula_h, formula_eff, sort_order } = body;
     if (!type_id) return NextResponse.json({ error: 'type_id required' }, { status: 400 });
 
     const updateData: Record<string, unknown> = {
@@ -29,6 +29,7 @@ export async function PUT(req: Request) {
     };
     if (formula_group) updateData.formula_group = formula_group;
     if (sort_order != null && sort_order !== '') updateData.sort_order = Number(sort_order);
+    if (type_label) updateData.type_label = type_label;
 
     await db('curtain_type_config').where({ type_id }).update(updateData);
 

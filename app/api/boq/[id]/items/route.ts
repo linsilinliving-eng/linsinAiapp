@@ -31,6 +31,26 @@ async function ensureTable() {
     });
     await db.raw('ALTER TABLE `boq_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
   }
+  const hasSets = await db.schema.hasColumn('boq_items', 'sets');
+  if (!hasSets) {
+    await db.schema.table('boq_items', t => { t.string('sets', 20).nullable().after('install_val'); });
+  }
+  const hasAcc1 = await db.schema.hasColumn('boq_items', 'acc1');
+  if (!hasAcc1) {
+    await db.schema.table('boq_items', t => { t.string('acc1', 200).nullable().after('hook'); });
+  }
+  const hasAcc2 = await db.schema.hasColumn('boq_items', 'acc2');
+  if (!hasAcc2) {
+    await db.schema.table('boq_items', t => { t.string('acc2', 200).nullable().after('acc1'); });
+  }
+  const hasAcc3 = await db.schema.hasColumn('boq_items', 'acc3');
+  if (!hasAcc3) {
+    await db.schema.table('boq_items', t => { t.string('acc3', 200).nullable().after('acc2'); });
+  }
+  const hasAcc3p = await db.schema.hasColumn('boq_items', 'acc3p');
+  if (!hasAcc3p) {
+    await db.schema.table('boq_items', t => { t.string('acc3p', 50).nullable().after('acc3'); });
+  }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -74,8 +94,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           motor: r.motor ?? null,
           c13: r.c13 ?? null,
           hook: r.hook ?? null,
+          acc1: r.acc1 ?? null,
+          acc2: r.acc2 ?? null,
+          acc3: r.acc3 ?? null,
+          acc3p: r.acc3p ?? null,
           sewing: r.sewing ?? null,
           install_val: r.install ?? null,
+          sets: r.sets ?? null,
           unit: r.unit ?? null,
           total: r.total ?? null,
         }));

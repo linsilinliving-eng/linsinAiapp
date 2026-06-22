@@ -168,7 +168,13 @@ export default function CustomerDetailPage() {
   const { id } = useParams() as { id: string };
   const [data, setData] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
+  const VALID_TABS = ['info', 'address', 'contact', 'source', 'sflag', 'history'];
   const [tab, setTab] = useState('info');
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (VALID_TABS.includes(hash)) setTab(hash);
+  }, []);
+  const switchTab = (key: string) => { setTab(key); window.location.hash = key; };
   const [saving, setSaving] = useState(false);
 
   // Editable fields (tab: info)
@@ -389,7 +395,7 @@ export default function CustomerDetailPage() {
         {/* Tabs */}
         <div className="cdt-tabs">
           {TABS.map(t => (
-            <button key={t.key} className={`cdt-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            <button key={t.key} className={`cdt-tab ${tab === t.key ? 'active' : ''}`} onClick={() => switchTab(t.key)}>
               {t.label}
             </button>
           ))}

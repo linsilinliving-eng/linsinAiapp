@@ -11,11 +11,23 @@ export async function GET(req: Request) {
     const limitParam = searchParams.get('limit');
     const limit = limitParam ? parseInt(limitParam, 10) : null;
 
+    const includeBoqUsed = searchParams.get('includeBoqUsed') === 'true';
+    const ptype = searchParams.get('ptype')?.trim() ?? '';
+
     let query = db('products')
       .select('id', 'code', 'name', 'category', 'ptype', 'price', 'unit', 'face_width', 'status', 'description', 'supplier', 'width1', 'width2')
-      .where('status', 'active');
+      .where((b: any) => {
+        b.where('status', 'active');
+        if (includeBoqUsed) b.orWhere('status', 'boq_used');
+      });
 
-    if (category) query = query.where('category', category);
+    if (category) {
+      const cats = category.split(',').map((c: string) => c.trim()).filter(Boolean);
+      query = cats.length === 1 ? query.where('category', cats[0]) : query.whereIn('category', cats);
+    }
+    if (ptype) {
+      query = query.where('ptype', ptype);
+    }
     if (q) {
       query = query.where((b: any) =>
         b.whereILike('code', `%${q}%`).orWhereILike('name', `%${q}%`)

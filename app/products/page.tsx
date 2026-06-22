@@ -391,6 +391,10 @@ export default function ProductDatabasePage() {
     } catch (e: any) { setError(e.message); }
   }
 
+  const MOTOR_RAIL_CATS = new Set(['รางม่านจีบ-มอร์เตอร์', 'รางม่านลอน-มอร์เตอร์', 'รางลอน-กระดุม-มอร์เตอร์']);
+  const showWidthCols = MOTOR_RAIL_CATS.has(catFilter) ||
+    (catFilterSet !== null && [...catFilterSet].some(c => MOTOR_RAIL_CATS.has(c)));
+
   const pickCat = (kw: string) => {
     setCatFilter(kw);
     setView('list');
@@ -575,33 +579,34 @@ export default function ProductDatabasePage() {
               <div className="bg-white rounded-xl pdb-shadow overflow-hidden">
                 <table className="w-full" style={{ tableLayout: 'fixed' }}>
                   <colgroup>
-                    <col style={{ width: 200 }} />
                     <col style={{ width: 160 }} />
-                    <col style={{ width: 220 }} />
+                    <col style={{ width: 200 }} />
+                    <col style={{ width: 140 }} />
                     <col style={{ width: 80 }} />
                     <col style={{ width: 180 }} />
-                    <col style={{ width: 80 }} />
-                    <col style={{ width: 90 }} />
+                    {showWidthCols && <><col style={{ width: 55 }} /><col style={{ width: 45 }} /></>}
+                    {!showWidthCols && <col style={{ width: 80 }} />}
+                    <col style={{ width: 75 }} />
                     <col style={{ width: 70 }} />
                     <col style={{ width: 90 }} />
                   </colgroup>
                   <thead style={{ background: '#f4f5f7' }}>
                     <tr className="text-xs uppercase tracking-wider" style={{ color: '#1f2937' }}>
-                      <th className="text-left py-3 px-4">Supplier</th>
-                      <th className="text-left py-3 px-4">รหัส</th>
-                      <th className="text-left py-3 px-4">ข้อมูลสินค้า</th>
-                      <th className="text-center py-3 px-4">จัดการ</th>
-                      <th className="text-left py-3 px-4">หมวด</th>
-                      <th className="text-right py-3 px-4">หน้าผ้า</th>
-                      <th className="text-right py-3 px-4">ราคา</th>
-                      <th className="text-left py-3 px-4">หน่วย</th>
-                      <th className="text-center py-3 px-4">สถานะ</th>
+                      <th className="text-left py-3 pl-2 pr-1">Supplier</th>
+                      <th className="text-left py-3 pl-1 pr-2">รหัส</th>
+                      <th className="text-left py-3 pl-2 pr-1">ข้อมูลสินค้า</th>
+                      <th className="text-center py-3 pl-1 pr-0">จัดการ</th>
+                      <th className="text-left py-3 pl-0 pr-0">หมวด</th>
+                      {showWidthCols ? (<><th className="text-center py-3 pl-0 pr-1 font-normal">กว้าง1</th><th className="text-center py-3 pl-1 pr-0 font-normal">กว้าง2</th></>) : <th className="text-right py-3 px-2">หน้าผ้า</th>}
+                      <th className="text-right py-3 pl-0 pr-2 font-normal">ราคา</th>
+                      <th className="text-left py-3 pl-2 pr-0">หน่วย</th>
+                      <th className="text-center py-3 pl-0 pr-2">สถานะ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
-                    {loading && <tr><td colSpan={9} className="py-10 text-center text-stone-400">กำลังโหลด…</td></tr>}
+                    {loading && <tr><td colSpan={showWidthCols ? 10 : 9} className="py-10 text-center text-stone-400">กำลังโหลด…</td></tr>}
                     {!loading && filtered.length === 0 && (
-                      <tr><td colSpan={9} className="py-10 text-center text-stone-400">ไม่พบสินค้าที่ตรงเงื่อนไข</td></tr>
+                      <tr><td colSpan={showWidthCols ? 10 : 9} className="py-10 text-center text-stone-400">ไม่พบสินค้าที่ตรงเงื่อนไข</td></tr>
                     )}
                     {!loading && paginatedProducts.map((p) => {
                       const cc = catColor(p.category);
@@ -609,16 +614,16 @@ export default function ProductDatabasePage() {
                       return (
                         <tr key={p.id} onClick={() => openEdit(p)}
                           className={`hover:bg-stone-50 transition cursor-pointer ${off ? 'opacity-60' : ''}`}>
-                          <td className="py-3 px-4 text-sm text-stone-600" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.supplier || '—'}</td>
-                          <td className="py-3 px-4 font-mono text-sm" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.code || '—'}</td>
-                          <td className="py-3 px-4 font-medium" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <td className="py-3 pl-2 pr-1 text-sm text-stone-600" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.supplier || '—'}</td>
+                          <td className="py-3 pl-1 pr-2 font-mono text-sm" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.code || '—'}</td>
+                          <td className="py-3 pl-2 pr-1 font-medium" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{p.name}</td>
+                          <td className="py-3 pl-1 pr-0 text-center whitespace-nowrap">
                             <button onClick={(e) => { e.stopPropagation(); openEdit(p); }}
                               className="px-2 py-1 rounded hover:bg-stone-200" title="แก้ไข">✏️</button>
                             <button onClick={(e) => { e.stopPropagation(); remove(p); }}
                               className="px-2 py-1 rounded hover:bg-red-100" title="ลบ">🗑️</button>
                           </td>
-                          <td className="py-3 px-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-3 pl-0 pr-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             {moveId === p.id ? (
                               <MoveDropdown
                                 value={p.category ?? ''}
@@ -637,10 +642,13 @@ export default function ProductDatabasePage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-right text-sm whitespace-nowrap">{p.face_width != null && p.face_width !== '' ? p.face_width : '—'}</td>
-                          <td className={`py-3 px-4 text-right font-medium whitespace-nowrap ${off ? 'text-stone-400' : ''}`}>{fmtPrice(p.price)}</td>
-                          <td className="py-3 px-4 text-sm text-stone-600 whitespace-nowrap">฿/{p.unit || 'ชิ้น'}</td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                          {showWidthCols
+                            ? (<><td className="py-3 pl-0 pr-1 text-center text-sm whitespace-nowrap">{p.width1 ?? '—'}</td><td className="py-3 pl-1 pr-0 text-center text-sm whitespace-nowrap">{p.width2 ?? '—'}</td></>)
+                            : <td className="py-3 px-4 text-right text-sm whitespace-nowrap">{p.face_width != null && p.face_width !== '' ? p.face_width : '—'}</td>
+                          }
+                          <td className={`py-3 pl-0 pr-2 text-right font-medium whitespace-nowrap ${off ? 'text-stone-400' : ''}`} style={{ fontSize: 12 }}>{fmtPrice(p.price)}</td>
+                          <td className="py-3 pl-2 pr-0 whitespace-nowrap" style={{ fontSize: 11, color: '#6b7280' }}>฿/{p.unit || 'ชิ้น'}</td>
+                          <td className="py-3 pl-0 pr-2 text-center whitespace-nowrap">
                             {p.status === 'active' && <span className="pdb-badge" style={{ background: '#D1F2D7', color: '#166534' }}>ปกติ</span>}
                             {p.status === 'paused' && <span className="pdb-badge" style={{ background: '#FEF3C7', color: '#92400E' }}>พักขาย</span>}
                             {p.status === 'discontinued' && <span className="pdb-badge" style={{ background: '#FFE5E5', color: '#8B1F1F' }}>สินค้ายกเลิก</span>}

@@ -23,7 +23,7 @@ interface SewingCombo {
   type_id: string;
   combo_key: string;
   label: string;
-  system: 'manual' | 'motor';
+  system: 'manual' | 'motor' | 'both';
   sewing_rate: number;
   setup_rate: number;
   sort_order: number;
@@ -96,6 +96,10 @@ export default function FormulaSettingsPage() {
   const [combos,  setCombos]  = useState<SewingCombo[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab]         = useState<'types' | 'combos'>('types');
+  useEffect(() => {
+    if (window.location.hash === '#combos') setTab('combos');
+  }, []);
+  const switchTab = (t: 'types' | 'combos') => { setTab(t); window.location.hash = t; };
 
   /* type edit modal */
   const [typeModal,    setTypeModal]    = useState(false);
@@ -123,7 +127,7 @@ export default function FormulaSettingsPage() {
   const [cTypeId,      setCTypeId]      = useState('sfold');
   const [cComboKey,    setCComboKey]    = useState('');
   const [cLabel,       setCLabel]       = useState('');
-  const [cSystem,      setCSystem]      = useState<'manual'|'motor'>('manual');
+  const [cSystem,      setCSystem]      = useState<'manual'|'motor'|'both'>('manual');
   const [cSewing,      setCSewing]      = useState('');
   const [cSetup,       setCSetup]       = useState('');
   const [cSort,        setCSort]        = useState('');
@@ -325,8 +329,8 @@ export default function FormulaSettingsPage() {
 
       {/* Tabs */}
       <div style={{ display:'flex',gap:4,marginBottom:0 }}>
-        <button style={tabBtn(tab === 'types')}  onClick={() => setTab('types')}>📐 ตั้งค่าสูตรต่อประเภท</button>
-        <button style={tabBtn(tab === 'combos')} onClick={() => setTab('combos')}>🧵 COMBO ค่าเย็บ-ค่าติดตั้ง</button>
+        <button style={tabBtn(tab === 'types')}  onClick={() => switchTab('types')}>📐 ตั้งค่าสูตรต่อประเภท</button>
+        <button style={tabBtn(tab === 'combos')} onClick={() => switchTab('combos')}>🧵 COMBO ค่าเย็บ-ค่าติดตั้ง</button>
       </div>
 
       <div style={{ background:'#fff',borderRadius:'0 10px 10px 10px',border:'1px solid #e2e4e9',overflow:'auto',boxShadow:'0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -425,11 +429,16 @@ export default function FormulaSettingsPage() {
                         <td style={{ padding:'7px 10px',fontFamily:'monospace',color:'#374151' }}>{c.combo_key}</td>
                         <td style={{ padding:'7px 10px',fontWeight:600,color:DARK }}>{c.label}</td>
                         <td style={{ padding:'7px 10px' }}>
-                          <span style={{ display:'inline-block',padding:'2px 8px',borderRadius:20,
-                            background:c.system==='motor'?'#f3e8ff':'#f3f4f6',
-                            color:c.system==='motor'?'#7c3aed':'#374151',fontSize:11,fontWeight:600 }}>
-                            {c.system === 'motor' ? 'มอเตอร์' : 'แมนวล'}
-                          </span>
+                          {c.system === 'both' ? (<>
+                            <span style={{ display:'inline-block',padding:'2px 8px',borderRadius:20,background:'#f3f4f6',color:'#374151',fontSize:11,fontWeight:600,marginRight:3 }}>แมนวล</span>
+                            <span style={{ display:'inline-block',padding:'2px 8px',borderRadius:20,background:'#f3e8ff',color:'#7c3aed',fontSize:11,fontWeight:600 }}>มอเตอร์</span>
+                          </>) : (
+                            <span style={{ display:'inline-block',padding:'2px 8px',borderRadius:20,
+                              background:c.system==='motor'?'#f3e8ff':'#f3f4f6',
+                              color:c.system==='motor'?'#7c3aed':'#374151',fontSize:11,fontWeight:600 }}>
+                              {c.system === 'motor' ? 'มอเตอร์' : 'แมนวล'}
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding:'7px 10px',fontWeight:700,color:GOLD }}>{c.sewing_rate.toLocaleString()}</td>
                         <td style={{ padding:'7px 10px',fontWeight:700,color:GOLD }}>{c.setup_rate.toLocaleString()}</td>
@@ -623,9 +632,10 @@ total  = (Q × R / 0.9) + panels`}
                 </Field>
               </div>
               <Field label="ระบบ">
-                <select value={cSystem} onChange={e => setCSystem(e.target.value as 'manual'|'motor')} style={INPUT}>
+                <select value={cSystem} onChange={e => setCSystem(e.target.value as 'manual'|'motor'|'both')} style={INPUT}>
                   <option value="manual">แมนวล</option>
                   <option value="motor">มอเตอร์</option>
+                  <option value="both">แมนวล + มอเตอร์</option>
                 </select>
               </Field>
               <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 16px' }}>
@@ -641,11 +651,11 @@ total  = (Q × R / 0.9) + panels`}
               <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 16px' }}>
                 <Field label="H min (ม.) — H >" desc="null = ไม่จำกัด">
                   <InputRow value={cHMin} onChange={setCHMin} locked={cHMinLocked} onToggleLock={() => setCHMinLocked(p => !p)}
-                    inputProps={{ type:'number', step:'0.5', min:'0', placeholder:'เช่น 3.20' }} />
+                    inputProps={{ type:'number', step:'0.01', min:'0', placeholder:'เช่น 3.20' }} />
                 </Field>
                 <Field label="H max (ม.) — H ≤" desc="null = ไม่จำกัด">
                   <InputRow value={cHMax} onChange={setCHMax} locked={cHMaxLocked} onToggleLock={() => setCHMaxLocked(p => !p)}
-                    inputProps={{ type:'number', step:'0.5', min:'0', placeholder:'เช่น 7.00' }} />
+                    inputProps={{ type:'number', step:'0.01', min:'0', placeholder:'เช่น 7.00' }} />
                 </Field>
               </div>
               <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 16px' }}>

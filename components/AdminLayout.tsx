@@ -59,14 +59,20 @@ const THEME_COLORS = [
 
 const navData = [
   { label: 'แดชบอร์ด', icon: IconLayoutDashboard, link: '/admin' },
-  { label: 'ฐานข้อมูลลูกค้า', icon: IconUsers, link: '/customers' },
-  { label: 'ฐานข้อมูลสินค้า', icon: IconPackage, link: '/products' },
-  { label: 'ใบประมาณราคา BOQ', icon: IconClipboardList, link: '/admin/boq' },
-  { label: 'กำหนดสูตร BOQ', icon: IconTools, link: '/admin/formula-settings' },
   { label: 'ฟอร์มสินค้า (8 หมวด)', icon: IconEdit, link: '/products/forms' },
   {
-    label: 'ระบบประมาณราคา', 
-    icon: IconInfoCircle, 
+    label: 'ระบบประมาณราคา',
+    icon: IconInfoCircle,
+    links: [
+      { label: 'ฐานข้อมูลลูกค้า', link: '/customers' },
+      { label: 'ฐานข้อมูลสินค้า', link: '/products' },
+      { label: 'ใบประมาณราคา BOQ', link: '/admin/boq' },
+      { label: 'กำหนดสูตร BOQ', link: '/admin/formula-settings' },
+    ]
+  },
+  {
+    label: 'ระบบใบเสนอราคา',
+    icon: IconChartBar,
     links: [
       { label: 'ข้อมูล ใบประมาณราคา', link: '/admin/estimation/estimates' },
       { label: 'ข้อมูลใบเสนอราคา', link: '/admin/estimation/quotations' },
@@ -77,7 +83,7 @@ const navData = [
       { label: 'ตัวเลือก 4. มี(ไม่มี)กล่อง ดร็อปฝ้า', link: '/admin/estimation/options-4' },
       { label: 'กลุ่ม ม่าน/มู่ลี่/ราง', link: '/admin/estimation/groups' },
       { label: 'ข้อมูล เงื่อนไขการชำระเงิน', link: '/admin/estimation/payment-terms' },
-    ] 
+    ]
   },
   { 
     label: 'ระบบงานขาย', 
@@ -165,6 +171,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const currentTheme = (session?.user as any)?.theme_color || 'blue';
 
   const handleNavClick = (e: React.MouseEvent, link: string) => {
+    if (e.ctrlKey || e.metaKey || e.button === 1) return;
     e.preventDefault();
     router.push(link);
     if (opened) {
@@ -245,15 +252,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             >
               <IconLayoutDashboard size="1.4rem" stroke={1.5} />
             </ActionIcon>
-            <Text 
-              size="lg" 
-              fw={800} 
-              variant="gradient" 
-              gradient={{ from: currentTheme, to: 'cyan', deg: 90 }}
-              style={{ letterSpacing: '-0.5px' }}
-            >
-              บริษัท ลินศิลิน ลิฟวิ่ง จำกัด
-            </Text>
+            <img
+              src="/linsilin-logo.png"
+              alt="LINSILIN LIVING"
+              style={{ height: 36, width: 'auto', objectFit: 'contain' }}
+            />
           </Group>
 
           <Group gap="sm">
@@ -367,7 +370,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             return (
               <NavLink
                 key={item.label}
-                component="div"
+                component={item.link && !item.links ? "a" : "div"}
+                href={item.link && !item.links ? item.link : undefined}
                 label={(desktopOpened || opened) ? item.label : <div className="hover-only-label">{item.label}</div>}
                 leftSection={<item.icon size="1.2rem" stroke={1.5} />}
                 active={item.link ? pathname === item.link : hasActiveChild}
@@ -377,7 +381,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                     e.preventDefault();
                     if (!desktopOpened) {
                       toggleDesktop();
-                      // สั่งให้เมนูที่กดขยายทันทีหลังจากกาง Sidebar
                       setOpenMenus({ [item.label]: true });
                     } else {
                       toggleMenu(item.label);
@@ -405,7 +408,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 {item.links?.map((subItem) => (
                   <NavLink
                     key={subItem.label}
-                    component="div"
+                    component="a"
+                    href={subItem.link}
                     label={subItem.label}
                     active={pathname === subItem.link}
                     onClick={(e) => {

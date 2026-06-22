@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sarabun } from "next/font/google";
+import { Sarabun, Cormorant_Garamond } from "next/font/google";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
 import "@mantine/charts/styles.css";
@@ -30,6 +30,12 @@ const sarabun = Sarabun({
   variable: "--font-sarabun",
 });
 
+const cormorant = Cormorant_Garamond({
+  weight: ["300", "400", "500", "600"],
+  subsets: ["latin"],
+  variable: "--font-cormorant",
+});
+
 export const metadata: Metadata = {
   title: "บริษัท ลินศิลิน ลิฟวิ่ง จำกัด",
   description: "Linsirin Living Co., Ltd.",
@@ -44,7 +50,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${sarabun.variable} h-full antialiased`}
+      className={`${sarabun.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ScriptClean />

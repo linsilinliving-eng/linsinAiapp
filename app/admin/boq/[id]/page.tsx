@@ -30,8 +30,8 @@ interface BoqRow {
   id: string; type: RowType; text?: string; no?: string; size?: string;
   desc?: string; code?: string; faceW?: string; unitPrice?: string;
   qty?: string; price?: string; discount?: string; net?: string;
-  rail?: string; motor?: string; c13?: string; hook?: string;
-  sewing?: string; install?: string; unit?: string; total?: string;
+  rail?: string; motor?: string; c13?: string; hook?: string; acc1?: string; acc2?: string; acc3?: string; acc3p?: string;
+  sewing?: string; install?: string; sets?: string; unit?: string; total?: string;
 }
 
 interface BoqDoc {
@@ -49,16 +49,18 @@ interface BoqDoc {
 let _uid = 0;
 const nid = () => `row_${++_uid}_${Math.random().toString(36).slice(2, 7)}`;
 const I = (no: string, size: string, desc: string, code: string, faceW: string, unitPrice: string, qty: string, price: string, discount: string, net: string, rail: string, motor: string, unit: string, total: string): BoqRow =>
-  ({ id: nid(), type: 'item', no, size, desc, code, faceW, unitPrice, qty, price, discount, net, rail, motor, c13: '300', hook: '300', sewing: '—', install: '—', unit, total });
+  ({ id: nid(), type: 'item', no, size, desc, code, faceW, unitPrice, qty, price, discount, net, rail, motor, c13: '-', hook: '-', sewing: '-', install: '-', sets: '-', unit, total });
 const R = (no: string, desc: string, unitPrice: string, qty: string, price: string, net: string, rail: string, unit: string, total: string): BoqRow =>
-  ({ id: nid(), type: 'retail', no, size: '—', desc, code: '', faceW: '—', unitPrice, qty, price, discount: '—', net, rail, motor: '—', c13: '—', hook: '—', sewing: '—', install: '—', unit, total });
+  ({ id: nid(), type: 'retail', no, size: '-', desc, code: '', faceW: '-', unitPrice, qty, price, discount: '-', net, rail, motor: '-', c13: '-', hook: '-', sewing: '-', install: '-', unit, total });
 const H = (text: string): BoqRow => ({ id: nid(), type: 'heading', text });
 const N = (text: string): BoqRow => ({ id: nid(), type: 'note', text });
 
-const ITEM_FIELDS: (keyof BoqRow)[] = ['faceW','unitPrice','qty','price','discount','net','rail','motor','c13','hook','sewing','install','unit'];
+const ITEM_FIELDS: (keyof BoqRow)[] = ['faceW','unitPrice','qty','price','discount','net','rail','motor','acc3p','c13','hook','sewing','install','sets','unit'];
 
 const toNum = (s?: string) => { if (!s) return 0; const n = parseFloat(s.replace(/,/g,'').replace(/[^0-9.-]/g,'')); return Number.isFinite(n) ? n : 0; };
 
+/* normalize legacy em-dash placeholder → short dash */
+const nd = (v?: string) => v === '—' ? '-' : v;
 /* strip trailing .00 from stored number strings */
 const stripDec = (s?: string) => (s && s !== '—') ? s.replace(/\.00$/, '') : s;
 
@@ -162,21 +164,26 @@ function dbToRow(r: any): BoqRow {
     type: (r.row_type ?? 'item') as RowType,
     text: r.text_val ?? undefined,
     no: r.no ?? undefined,
-    size: r.size_val ?? undefined,
+    size: nd(r.size_val ?? undefined),
     desc: r.desc_text ?? undefined,
     code: r.code ?? undefined,
-    faceW: r.face_w ?? undefined,
+    faceW: nd(r.face_w ?? undefined),
     unitPrice: stripDec(r.unit_price ?? undefined),
     qty: r.qty ?? undefined,
     price: toDec2(r.price ?? undefined),
-    discount: toDec2(r.discount_val ?? undefined),
+    discount: toDec2(nd(r.discount_val ?? undefined)),
     net: toDec2(r.net ?? undefined),
     rail: stripDec(r.rail ?? undefined),
-    motor: stripDec(r.motor ?? undefined),
-    c13: r.c13 ?? undefined,
-    hook: r.hook ?? undefined,
-    sewing: stripDec(r.sewing ?? undefined),
-    install: stripDec(r.install_val ?? undefined),
+    motor: stripDec(nd(r.motor ?? undefined)),
+    c13: r.c13 === '(-)' ? '-' : nd(r.c13 ?? undefined),
+    hook: r.hook === '(-)' ? '-' : nd(r.hook ?? undefined),
+    acc1: r.acc1 ?? undefined,
+    acc2: r.acc2 ?? undefined,
+    acc3: r.acc3 ?? undefined,
+    acc3p: r.acc3p ?? undefined,
+    sewing: stripDec(nd(r.sewing ?? undefined)),
+    install: stripDec(nd(r.install_val ?? undefined)),
+    sets: r.sets ?? undefined,
     unit: r.unit ?? undefined,
     total: toDec2(r.total ?? undefined),
   };
@@ -211,6 +218,85 @@ export default function BoqDocPage() {
   const undoStack = useRef<UndoEntry[]>([]);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<BoqRow | null>(null);
+  const [wizardStartStep, setWizardStartStep] = useState<number | undefined>(undefined);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleSelect = (id: string) =>
+    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+
+  /* IDs ที่ยังอยู่ใน rows จริง (กันกรณีลบแถวแล้ว ID ค้างใน set) */
+  const activeSelectedIds = new Set(rows.filter(r => selectedIds.has(r.id)).map(r => r.id));
+  const selCount = activeSelectedIds.size;
+
+  const [dupOpen, setDupOpen]       = useState(false);
+  const [dupAnchor, setDupAnchor]   = useState<string | null>(null);
+  const [dupPick, setDupPick]       = useState<Set<string>>(new Set());
+  const toggleDupPick = (id: string) =>
+    setDupPick(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+
+  const openDup = (anchorId: string) => {
+    setDupAnchor(anchorId);
+    setDupPick(new Set());
+    setDupOpen(true);
+  };
+
+  const confirmDup = () => {
+    setRows(p => {
+      const anchorIdx = dupAnchor ? p.findIndex(r => r.id === dupAnchor) : p.length - 1;
+      const ordered   = p.filter(r => dupPick.has(r.id));
+      if (!ordered.length) return p;
+      pushUndo({ action: 'snapshot', rows: p });
+      const clones = ordered.map(r => ({ ...r, id: nid() }));
+      const next   = [...p];
+      next.splice(anchorIdx + 1, 0, ...clones);
+      return next;
+    });
+    setDupOpen(false);
+    setDupPick(new Set());
+    setDupAnchor(null);
+    triggerSave();
+  };
+
+  const convertSelected = (toType: RowType) => {
+    setRows(p => {
+      if (!selectedIds.size) return p;
+      pushUndo({ action: 'snapshot', rows: p });
+      return p.map(r => {
+        if (!selectedIds.has(r.id)) return r;
+        const label = r.text || r.desc || '';
+        if (toType === 'heading') return { id: r.id, type: 'heading' as RowType, text: label };
+        if (toType === 'note')    return { id: r.id, type: 'note'    as RowType, text: label };
+        if (toType === 'item')    return { ...I('', '', label, '', '', '', '', '', '', '', '-', '-', '-', ''), id: r.id };
+        if (toType === 'retail')  return { ...R('', label, '', '', '', '', '-', 'ตัว', ''), id: r.id };
+        return r;
+      });
+    });
+    setSelectedIds(new Set());
+    triggerSave();
+  };
+
+  const duplicateSelected = () => {
+    setRows(p => {
+      const ordered = p.filter(r => selectedIds.has(r.id));
+      if (!ordered.length) return p;
+      pushUndo({ action: 'snapshot', rows: p });
+      const lastIdx = p.reduce((max, r, i) => selectedIds.has(r.id) ? i : max, -1);
+      const clones = ordered.map(r => ({ ...r, id: nid() }));
+      const next = [...p];
+      next.splice(lastIdx + 1, 0, ...clones);
+      return next;
+    });
+    setSelectedIds(new Set());
+    triggerSave();
+  };
+
+  const deleteSelected = async () => {
+    const { isConfirmed } = await swalConfirm(`ลบ ${selCount} แถว?`, 'ไม่สามารถกู้คืนได้ (ยกเว้น UNDO)');
+    if (!isConfirmed) return;
+    pushUndo({ action: 'snapshot', rows });
+    setRows(p => p.filter(r => !activeSelectedIds.has(r.id)));
+    setSelectedIds(new Set());
+    triggerSave();
+  };
 
   /* auto-save */
   type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
@@ -323,8 +409,8 @@ export default function BoqDocPage() {
   const addRow = (type: RowType, desc?: string) => {
     const blank: BoqRow = type === 'heading' ? { id: nid(), type, text: 'หัวเรื่องใหม่' }
       : type === 'note' ? { id: nid(), type, text: '📝 หมายเหตุ:' }
-      : type === 'retail' ? R('', 'ค่าปลีก', '', '1 ตัว', '', '', '—', 'ตัว', '')
-      : I('', '', desc ?? 'รายการใหม่', '', '', '', '', '', '', '', '—', '—', 'ชุด', '');
+      : type === 'retail' ? R('', 'ค่าปลีก', '', '1 ตัว', '', '', '-', 'ตัว', '')
+      : I('', '', desc ?? 'รายการใหม่', '', '', '', '', '', '', '', '-', '-', '-', '');
     setRows(p => [...p, blank]);
     pushUndo({ action: 'add', id: blank.id });
     triggerSave();
@@ -334,6 +420,32 @@ export default function BoqDocPage() {
     const { isConfirmed } = await swalConfirm('ลบแถวนี้?', 'ไม่สามารถกู้คืนได้ (ยกเว้น UNDO)');
     if (!isConfirmed) return;
     setRows(p => { const index = p.findIndex(r => r.id === rowId); if (index < 0) return p; pushUndo({ action: 'del', index, row: p[index] }); return p.filter(r => r.id !== rowId); });
+    triggerSave();
+  };
+
+  const insertItemAfter = (rowId: string) => {
+    setRows(p => {
+      const i = p.findIndex(r => r.id === rowId);
+      if (i < 0) return p;
+      pushUndo({ action: 'snapshot', rows: p });
+      const blank = I('', '', '', '', '', '', '', '', '', '', '-', '-', '-', '');
+      const next = [...p];
+      next.splice(i + 1, 0, blank);
+      return next;
+    });
+    triggerSave();
+  };
+
+  const insertHeadingAfter = (rowId: string) => {
+    setRows(p => {
+      const i = p.findIndex(r => r.id === rowId);
+      if (i < 0) return p;
+      pushUndo({ action: 'snapshot', rows: p });
+      const blank: BoqRow = { id: nid(), type: 'heading', text: 'หัวเรื่องใหม่' };
+      const next = [...p];
+      next.splice(i + 1, 0, blank);
+      return next;
+    });
     triggerSave();
   };
 
@@ -361,8 +473,8 @@ export default function BoqDocPage() {
       const blank: BoqRow =
         src.type === 'heading' ? { id: nid(), type: 'heading', text: 'หัวเรื่องใหม่' } :
         src.type === 'note'    ? { id: nid(), type: 'note',    text: '📝 หมายเหตุ:' } :
-        src.type === 'retail'  ? R('', 'ค่าปลีก', '', '1 ตัว', '', '', '—', 'ตัว', '') :
-                                 I('', '', 'รายการใหม่', '', '', '', '', '', '', '', '—', '—', 'ชุด', '');
+        src.type === 'retail'  ? R('', 'ค่าปลีก', '', '1 ตัว', '', '', '-', 'ตัว', '') :
+                                 I('', '', 'รายการใหม่', '', '', '', '', '', '', '', '-', '-', '-', '');
       const next = [...p];
       next.splice(i, 0, blank);
       return next;
@@ -378,11 +490,7 @@ export default function BoqDocPage() {
       const i = p.findIndex(r => r.id === rowId);
       if (i < 0) return p;
       const src = p[i];
-      const cleared: BoqRow =
-        src.type === 'heading' ? { id: src.id, type: 'heading', text: '' } :
-        src.type === 'note'    ? { id: src.id, type: 'note',    text: '' } :
-        src.type === 'retail'  ? { ...R('', '', '', '', '', '', '—', 'ตัว', ''), id: src.id } :
-                                 { ...I('', '', '', '', '', '', '', '', '', '', '—', '—', 'ชุด', ''), id: src.id, c13: '', hook: '' };
+      const cleared: BoqRow = { id: src.id, type: 'item' };
       const next = [...p];
       next[i] = cleared;
       return next;
@@ -459,28 +567,40 @@ export default function BoqDocPage() {
 
         {/* ---------- toolbar ---------- */}
         <div className="action-toolbar">
+          {/* แถวที่ 1 — ปุ่มหลัก */}
           <button className="toolbar-btn" style={{ background:'#f3f4f6',border:'1px solid #d1d5db',color:'#374151' }} onClick={() => router.push('/admin/boq')}>← รายการ</button>
-          <button className="toolbar-btn btn-title" onClick={() => addRow('heading')}>+ หัวเรื่อง</button>
-          <button className="toolbar-btn btn-item" onClick={() => setWizardOpen(true)}>+ รายการ</button>
+          <button className="toolbar-btn btn-title" onClick={() => { if (selCount > 0) { convertSelected('heading'); } else addRow('heading'); }}>+ หัวเรื่อง</button>
+          <button className="toolbar-btn btn-item" onClick={() => { if (selCount > 0) { const r = rows.find(row => activeSelectedIds.has(row.id)); if (r) { setEditingRow(r); setWizardStartStep(1); setWizardOpen(true); setSelectedIds(new Set()); } } else setWizardOpen(true); }}>+ รายการ</button>
           <button className="toolbar-btn btn-retail" onClick={() => addRow('retail')}>+ ค่าปลีก-AUTO</button>
-          <button className="toolbar-btn btn-note" onClick={() => addRow('note')}>+ NOTE</button>
+          <button className="toolbar-btn btn-note" onClick={() => selCount > 0 ? convertSelected('note') : addRow('note')}>+ NOTE</button>
           <button className="toolbar-btn btn-undo" onClick={undo}>↶ UNDO</button>
           <button className="toolbar-btn btn-print" onClick={() => window.print()}>🖨️ พิมพ์</button>
           <span className="save-indicator" data-state={saveState}>
             {saveState === 'pending' || saveState === 'saving' ? '⏳ กำลังบันทึก…' : saveState === 'saved' ? '✓ บันทึกแล้ว' : saveState === 'error' ? '⚠ บันทึกไม่สำเร็จ' : ''}
           </span>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>สถานะ</label>
-            <select value={status} onChange={e => saveStatus(e.target.value)}
-              style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '4px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1,
-                background: status==='draft'?'#f3f4f6':status==='sent'?'#dbeafe':status==='approved'?'#dcfce7':'#fee2e2',
-                color: status==='draft'?'#374151':status==='sent'?'#1d4ed8':status==='approved'?'#15803d':'#b91c1c',
-              }}>
-              <option value="draft">แบบร่าง</option>
-              <option value="sent">ส่งแล้ว</option>
-              <option value="approved">อนุมัติ</option>
-              <option value="cancelled">ยกเลิก</option>
-            </select>
+
+          {/* แถวที่ 2 — selection + status */}
+          <div style={{ flex:'1 0 100%', display:'flex', alignItems:'center', justifyContent:'space-between', marginTop: selCount > 0 ? 4 : 0 }}>
+            <div style={{ display:'flex',alignItems:'center',gap:6 }}>
+              {selCount > 0 && (<>
+                <span style={{ fontSize:11,color:'#9ca3af',fontWeight:600 }}>เลือก {selCount} แถว →</span>
+<button className="toolbar-btn btn-sel-del"      onClick={deleteSelected}>🗑 ลบ {selCount} แถว</button>
+                <button className="toolbar-btn btn-sel-clear"    onClick={() => setSelectedIds(new Set())}>✕ ยกเลิก</button>
+              </>)}
+            </div>
+            <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+              <label style={{ fontSize:12,color:'#6b7280',fontWeight:600 }}>สถานะ</label>
+              <select value={status} onChange={e => saveStatus(e.target.value)}
+                style={{ border:'1px solid #d1d5db',borderRadius:6,padding:'4px 10px',fontSize:13,fontWeight:600,cursor:'pointer',opacity:saving?0.6:1,
+                  background: status==='draft'?'#f3f4f6':status==='sent'?'#dbeafe':status==='approved'?'#dcfce7':'#fee2e2',
+                  color: status==='draft'?'#374151':status==='sent'?'#1d4ed8':status==='approved'?'#15803d':'#b91c1c',
+                }}>
+                <option value="draft">แบบร่าง</option>
+                <option value="sent">ส่งแล้ว</option>
+                <option value="approved">อนุมัติ</option>
+                <option value="cancelled">ยกเลิก</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -496,32 +616,34 @@ export default function BoqDocPage() {
               <colgroup>
                 <col style={{ width: 96 }} /><col style={{ width: 38 }} />
                 <col style={{ width: 110 }} /><col />
-                <col style={{ width: 40 }} /><col style={{ width: 56 }} />
+                <col style={{ width: 32 }} /><col style={{ width: 38 }} />
                 <col style={{ width: 58 }} /><col style={{ width: 70 }} />
-                <col style={{ width: 70 }} /><col style={{ width: 78 }} />
-                <col style={{ width: 56 }} /><col style={{ width: 52 }} />
+                <col style={{ width: 70 }} /><col style={{ width: 64 }} />
+                <col style={{ width: 56 }} /><col style={{ width: 38 }} /><col style={{ width: 48 }} />
                 <col style={{ width: 34 }} /><col style={{ width: 34 }} />
                 <col style={{ width: 52 }} /><col style={{ width: 52 }} />
-                <col style={{ width: 32 }} /><col style={{ width: 74 }} />
+                <col style={{ width: 32 }} /><col style={{ width: 24 }} /><col style={{ width: 74 }} />
               </colgroup>
               <thead>
                 <tr>
                   <th rowSpan={2}>Action</th><th rowSpan={2}>ลำดับ</th>
                   <th rowSpan={2}>ขนาด<br />SIZE</th><th rowSpan={2}>ประเภท / รายละเอียด</th>
                   <th rowSpan={2} className="rot"><span className="r">หน้าผ้า(ม.)</span></th>
-                  <th rowSpan={2}>ราคา<br />ต่อหน่วย</th>
-                  <th>จำนวน</th><th>ราคา</th><th>ส่วนลด</th><th>ราคาสินค้า</th><th>ราง</th>
+                  <th rowSpan={2} style={{fontSize:10}}>ราคา<br />ต่อหน่วย</th>
+                  <th style={{fontSize:11}}>จำนวน</th><th style={{fontSize:11}}>ราคา</th><th style={{fontSize:11}}>ส่วนลด</th><th style={{fontSize:11}}>ราคาสินค้า</th><th style={{fontSize:11}}>ราง</th>
                   <th rowSpan={2} className="rot"><span className="r">มอเตอร์</span></th>
+                  <th rowSpan={2} className="rot"><span className="r" style={{fontSize:9}}>อุปกรณ์เสริม</span></th>
                   <th rowSpan={2} className="rot"><span className="r">ด้ามจูง</span></th>
                   <th rowSpan={2} className="rot"><span className="r">ตะขอ</span></th>
-                  <th rowSpan={2}>ค่าเย็บ</th><th rowSpan={2}>ค่าติดตั้ง</th>
+                  <th rowSpan={2} style={{fontSize:11}}>ค่าเย็บ</th><th rowSpan={2} style={{fontSize:11}}>ค่าติดตั้ง</th>
+                  <th rowSpan={2} className="rot"><span className="r">จำนวน ชุด</span></th>
                   <th rowSpan={2} className="rot"><span className="r">หน่วย</span></th>
-                  <th rowSpan={2}>จำนวนเงิน</th>
+                  <th rowSpan={2} style={{fontSize:11}}>จำนวนเงิน</th>
                 </tr>
                 <tr>
-                  <th>ที่ใช้<br /><span style={{ fontSize: 10, fontWeight: 400 }}>(yd/sqyd)</span></th>
-                  <th>รวม</th><th>ส่วนลด<br /><span style={{ fontSize: 10, fontWeight: 400 }}>(บาท)</span></th>
-                  <th>สุทธิ</th><th>อุปกรณ์</th>
+                  <th style={{fontSize:11}}>ที่ใช้<br /><span style={{ fontSize: 10, fontWeight: 400 }}>(yd/sqyd)</span></th>
+                  <th style={{fontSize:11}}>รวม</th><th style={{fontSize:11}}>ส่วนลด<br /><span style={{ fontSize: 10, fontWeight: 400 }}>(บาท)</span></th>
+                  <th style={{fontSize:11}}>สุทธิ</th><th style={{fontSize:11}}>อุปกรณ์</th>
                 </tr>
               </thead>
               <tbody>
@@ -529,6 +651,7 @@ export default function BoqDocPage() {
                   const actionCell = (
                     <td className="cell-act">
                       <span className="act-inner">
+                        <input type="checkbox" className="row-chk" checked={selectedIds.has(row.id)} onChange={() => toggleSelect(row.id)} title="เลือก" />
                         <button className="bi" title="แก้ไขรายการ" onClick={() => { setEditingRow(row); setWizardOpen(true); }}>✏️</button>
                         <button className="bi" onClick={() => deleteRow(row.id)}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -539,8 +662,8 @@ export default function BoqDocPage() {
                             <Menu.Item onClick={() => move(row.id, -1)}>↑ เลื่อนขึ้น</Menu.Item>
                             <Menu.Item onClick={() => move(row.id, 1)}>↓ เลื่อนลง</Menu.Item>
                             <Menu.Divider />
-                            <Menu.Item onClick={() => insertBlankAbove(row.id)}>▲ แถวใหม่ด้านบน</Menu.Item>
-                            <Menu.Item onClick={() => duplicate(row.id)}>⧉ ทำซ้ำ</Menu.Item>
+                            <Menu.Item onClick={() => insertItemAfter(row.id)}>+ รายการใหม่</Menu.Item>
+                            <Menu.Item onClick={() => openDup(row.id)}>⧉ ทำซ้ำ</Menu.Item>
                             <Menu.Item onClick={() => addNoteAfter(row.id)}>📝 NOTE ต่อท้าย</Menu.Item>
                             <Menu.Divider />
                             <Menu.Item color="red" onClick={() => clearRow(row.id)}>🧹 ล้างข้อมูล</Menu.Item>
@@ -552,13 +675,13 @@ export default function BoqDocPage() {
                   if (row.type === 'heading') return (
                     <tr key={row.id} className={`row-heading${highlightedId === row.id ? ' row-editing' : ''}`}>
                       {actionCell}
-                      <td colSpan={17} style={{ padding: 0 }}><input className="boq-cell-input boq-heading-input" value={row.text || ''} onChange={e => commit(row.id, 'text', e.target.value)} /></td>
+                      <td colSpan={19} style={{ padding: 0 }}><input className="boq-cell-input boq-heading-input" value={row.text || ''} onChange={e => commit(row.id, 'text', e.target.value)} /></td>
                     </tr>
                   );
                   if (row.type === 'note') return (
                     <tr key={row.id} className={`row-note${highlightedId === row.id ? ' row-editing' : ''}`}>
                       {actionCell}
-                      <td colSpan={17} style={{ padding: 0 }}><input className="boq-cell-input boq-note-input" value={row.text || ''} onChange={e => commit(row.id, 'text', e.target.value)} /></td>
+                      <td colSpan={19} style={{ padding: 0 }}><input className="boq-cell-input boq-note-input" value={row.text || ''} onChange={e => commit(row.id, 'text', e.target.value)} /></td>
                     </tr>
                   );
                   return (
@@ -567,11 +690,11 @@ export default function BoqDocPage() {
                       <Cell row={row} field="no" />
                       <Cell row={row} field="size" className="cl" />
                       <td className="cl" style={{ padding: 0 }}>
-                        <input className="boq-cell-input boq-cell-left" value={row.desc || ''} onChange={e => commit(row.id, 'desc', e.target.value)} />
-                        {row.code ? <div className="si"><span>รหัส: {row.code}</span></div> : null}
+                        <input className="boq-cell-input boq-cell-left boq-cell-desc" value={row.desc || ''} onChange={e => commit(row.id, 'desc', e.target.value)} />
+                        {row.code ? <div className="si"><span>{row.code.replace(/^\([^)]*\)\s*/, '')}</span></div> : null}
                       </td>
                       {ITEM_FIELDS.map(f => {
-                        const cls = f==='discount'?'c-red':f==='net'?'c-net':f==='faceW'?'cr c-facew':f==='qty'?'cr c-qty':f==='motor'?'cr c-motor':'cr';
+                        const cls = f==='discount'?'c-red':f==='net'?'c-net':f==='faceW'?'cr c-facew':f==='qty'?'cr c-qty':f==='motor'||f==='acc3p'?'cr c-motor':'cr';
                         return <Cell key={f} row={row} field={f} className={cls} />;
                       })}
                       <Cell row={row} field="total" className="c-tot" />
@@ -600,12 +723,95 @@ export default function BoqDocPage() {
       {wizardOpen && (
         <WizardModal
           key={editingRow?.id ?? 'new'}
-          onClose={() => { setWizardOpen(false); setEditingRow(null); }}
+          onClose={() => { setWizardOpen(false); setEditingRow(null); setWizardStartStep(undefined); }}
           onAdd={editingRow ? updateRow : addFullRow}
           nextNo={rows.filter(r => r.type === 'item' || r.type === 'retail').length + 1}
           editRow={editingRow ?? undefined}
+          startStep={wizardStartStep}
         />
       )}
+
+      {dupOpen && (
+        <div style={{ position:'fixed',inset:0,zIndex:600,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:16 }}>
+          <div style={{ background:'#fff',borderRadius:16,width:'100%',maxWidth:580,maxHeight:'82vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,.25)' }}>
+
+            {/* header */}
+            <div style={{ padding:'16px 24px',borderBottom:'1px solid #e5e7eb',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0 }}>
+              <div>
+                <div style={{ fontSize:10,letterSpacing:'0.15em',color:'#9ca3af',textTransform:'uppercase',marginBottom:2 }}>ทำซ้ำรายการ</div>
+                <div style={{ fontWeight:700,fontSize:16,color:'#1f2937' }}>เลือกรายการที่ต้องการทำซ้ำ</div>
+              </div>
+              <button onClick={() => setDupOpen(false)} style={{ background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#9ca3af',lineHeight:1 }}>×</button>
+            </div>
+
+            {/* select all bar */}
+            <div style={{ padding:'8px 24px',borderBottom:'1px solid #f3f4f6',display:'flex',gap:16,alignItems:'center',flexShrink:0 }}>
+              <label style={{ display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,fontWeight:600,color:'#374151' }}>
+                <input type="checkbox"
+                  checked={dupPick.size === rows.length && rows.length > 0}
+                  ref={el => { if (el) el.indeterminate = dupPick.size > 0 && dupPick.size < rows.length; }}
+                  onChange={e => setDupPick(e.target.checked ? new Set(rows.map(r => r.id)) : new Set())}
+                  style={{ width:14,height:14,cursor:'pointer',accentColor:'#374151' }} />
+                เลือกทั้งหมด ({rows.length})
+              </label>
+              {dupPick.size > 0 && (
+                <button onClick={() => setDupPick(new Set())}
+                  style={{ background:'none',border:'none',cursor:'pointer',color:'#9ca3af',padding:0,fontFamily:'inherit',fontSize:12 }}>
+                  ยกเลิกทั้งหมด
+                </button>
+              )}
+            </div>
+
+            {/* list */}
+            <div style={{ overflowY:'auto',flex:1,padding:'4px 0' }}>
+              {rows.map(r => {
+                const checked = dupPick.has(r.id);
+                const isAnchor = r.id === dupAnchor;
+                const icon  = r.type==='heading'?'📁':r.type==='note'?'📝':r.type==='retail'?'🛒':'·';
+                const label = (r.type==='heading'||r.type==='note')
+                  ? (r.text||'—')
+                  : `${r.no?`#${r.no} `:''}${r.desc||'—'}${r.size?` · ${r.size}`:''}`;
+                return (
+                  <label key={r.id} style={{ display:'flex',alignItems:'center',gap:10,padding:'7px 24px',cursor:'pointer',
+                    background: checked?'#f0f7ff':'transparent',
+                    borderLeft:`3px solid ${checked?'#374151':'transparent'}`,
+                    transition:'background .1s' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleDupPick(r.id)}
+                      style={{ width:14,height:14,cursor:'pointer',accentColor:'#374151',flexShrink:0 }} />
+                    <span style={{ fontSize:12,color:'#9ca3af',width:16,textAlign:'center',flexShrink:0 }}>{icon}</span>
+                    <span style={{ fontSize:13,flex:1,
+                      color: r.type==='heading'?'#374151':r.type==='note'?'#6b7280':'#111827',
+                      fontWeight: r.type==='heading'?700:400,
+                      fontStyle: r.type==='note'?'italic':'normal',
+                      overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{label}</span>
+                    {isAnchor && <span style={{ fontSize:10,background:'#FEF3C7',color:'#92400E',borderRadius:4,padding:'1px 6px',flexShrink:0 }}>จุดแทรก</span>}
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* footer */}
+            <div style={{ padding:'12px 24px',borderTop:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0 }}>
+              <span style={{ fontSize:12,color:'#9ca3af' }}>เลือก <strong style={{ color:'#374151' }}>{dupPick.size}</strong> รายการ · แทรกหลังแถวที่กด +</span>
+              <div style={{ display:'flex',gap:8 }}>
+                <button onClick={() => setDupOpen(false)}
+                  style={{ padding:'7px 16px',border:'1px solid #d1d5db',borderRadius:8,background:'#fff',cursor:'pointer',fontSize:13,fontFamily:'inherit' }}>
+                  ยกเลิก
+                </button>
+                <button disabled={dupPick.size===0} onClick={confirmDup}
+                  style={{ padding:'7px 18px',border:'none',borderRadius:8,fontFamily:'inherit',fontSize:13,fontWeight:700,
+                    cursor:dupPick.size>0?'pointer':'default',transition:'all .15s',
+                    background:dupPick.size>0?'#1f2937':'#e5e7eb',
+                    color:dupPick.size>0?'#fff':'#9ca3af' }}>
+                  ⧉ ทำซ้ำ{dupPick.size>0?` ${dupPick.size} รายการ`:''}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -632,18 +838,27 @@ const CSS = `
 .boq-page .btn-note{background:#f0f1f3;border-color:#c4c8d0;color:#374151}.boq-page .btn-note:hover{background:#e2e4e9}
 .boq-page .btn-undo{background:#f8d7da;border-color:#dc3545;color:#721c24}.boq-page .btn-undo:hover{background:#f5b8bc}
 .boq-page .btn-print{background:#f0f1f3;border-color:#374151;color:#374151}.boq-page .btn-print:hover{background:#e2e4e9}
+@keyframes fadeIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.boq-page .btn-conv-heading{background:#fff3cd;border-color:#f0ad4e;color:#6d4c00;animation:fadeIn .15s ease}.boq-page .btn-conv-heading:hover{background:#ffe8a0}
+.boq-page .btn-conv-item{background:#d4edda;border-color:#28a745;color:#145221;animation:fadeIn .15s ease}.boq-page .btn-conv-item:hover{background:#b8dfc4}
+.boq-page .btn-conv-note{background:#f0f1f3;border-color:#c4c8d0;color:#374151;animation:fadeIn .15s ease}.boq-page .btn-conv-note:hover{background:#e2e4e9}
+.boq-page .btn-conv-retail{background:#cfe2ff;border-color:#0d6efd;color:#082c6b;animation:fadeIn .15s ease}.boq-page .btn-conv-retail:hover{background:#aecbf8}
+.boq-page .btn-dup-sel{background:#fef3c7;border-color:#d97706;color:#92400e;font-weight:700;animation:fadeIn .15s ease}.boq-page .btn-dup-sel:hover{background:#fde68a}
+.boq-page .btn-sel-del{background:#dc2626;border-color:#b91c1c;color:#fff;animation:fadeIn .15s ease}.boq-page .btn-sel-del:hover{background:#b91c1c}
+.boq-page .btn-sel-clear{background:#fee2e2;border-color:#dc3545;color:#721c24;animation:fadeIn .15s ease}.boq-page .btn-sel-clear:hover{background:#fecaca}
+.boq-page .row-chk{width:14px;height:14px;cursor:pointer;accent-color:#374151;flex-shrink:0;margin:0}
 .boq-page .save-indicator{font-size:12px;padding:2px 0;min-width:100px;transition:all .3s}
 .boq-page .save-indicator[data-state="idle"],.boq-page .save-indicator[data-state="pending"]{color:#9ca3af}
 .boq-page .save-indicator[data-state="saving"]{color:#6b7280;font-style:italic}
 .boq-page .save-indicator[data-state="saved"]{color:#16a34a;font-weight:600}
 .boq-page .save-indicator[data-state="error"]{color:#dc2626;font-weight:600}
 .boq-page .table-wrap{overflow-x:auto}
-.boq-page table.boq{border-collapse:separate;border-spacing:0;width:100%;min-width:1130px;font-size:13px;table-layout:fixed}
+.boq-page table.boq{border-collapse:separate;border-spacing:0;width:100%;min-width:1130px;font-size:11px;table-layout:fixed}
 .boq-page table.boq thead th{background:#1f2937;color:#fff;text-align:center;vertical-align:middle;padding:5px 3px;border:1px solid #374151;font-size:13px;font-weight:700;white-space:nowrap;line-height:1.3}
 .boq-page table.boq thead th:first-child{position:sticky;left:0;z-index:3;background:#1f2937;box-shadow:2px 0 4px rgba(0,0,0,.12)}
 .boq-page thead th.rot{width:22px;min-width:22px;padding:3px 1px}
 .boq-page thead th.rot .r{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;font-size:11px;line-height:1}
-.boq-page table.boq tbody td{border:1px solid #e2e4e9;padding:4px;vertical-align:middle;text-align:center;overflow:hidden;white-space:nowrap}
+.boq-page table.boq tbody tr{height:44px}.boq-page table.boq tbody td{border:1px solid #e2e4e9;padding:4px;vertical-align:middle;text-align:center;overflow:hidden;white-space:nowrap}
 .boq-page table.boq tbody tr.row-heading td{background:#e8eaed;font-weight:700;font-size:13px;color:#374151;text-align:left;padding-left:8px;white-space:normal}
 .boq-page tr.row-item td{background:#fff}.boq-page tr.row-item:hover td{background:#f4f5f7}
 .boq-page tr.row-retail td{background:#fefcf0}.boq-page tr.row-retail:hover td{background:#fdf5d0}
@@ -651,11 +866,11 @@ const CSS = `
 .boq-page table.boq tbody td.cl{text-align:left;white-space:normal;font-size:13px}
 .boq-page table.boq tbody td.cr{text-align:right}
 .boq-page table.boq tbody td.c-red{color:#c0392b;text-align:right}
-.boq-page table.boq tbody td.c-net{font-size:13px;text-align:right;font-weight:400}
-.boq-page table.boq tbody td.c-tot{font-weight:700;font-size:13px;text-align:right;color:#166534}
+.boq-page table.boq tbody td.c-net{text-align:right;font-weight:400}
+.boq-page table.boq tbody td.c-tot{font-weight:700;font-size:12px;text-align:right;color:#166534}
 .boq-page table.boq tbody td.c-facew{font-size:11px;color:#6b7280}
 .boq-page table.boq tbody td.c-qty{font-size:11px;color:#6b7280}
-.boq-page table.boq tbody td.c-motor{font-size:13px;color:#6b7280}
+.boq-page table.boq tbody td.c-motor{color:#6b7280}
 .boq-page table.boq tbody td.cell-act{text-align:left;white-space:nowrap;padding:4px;vertical-align:middle;border:1px solid #e2e4e9;position:sticky;left:0;z-index:2;background:#fff;box-shadow:2px 0 4px rgba(0,0,0,.06)}
 .boq-page tr.row-heading td.cell-act{background:#e8eaed}
 .boq-page tr.row-note td.cell-act{background:#f4f5f7}
@@ -684,4 +899,5 @@ const CSS = `
 .boq-page table.boq tbody tr.row-item td:nth-child(2) .boq-cell-input,.boq-page table.boq tbody tr.row-retail td:nth-child(2) .boq-cell-input{text-align:center}
 .boq-heading-input{font-weight:700;font-size:13px;color:#374151;text-align:left}
 .boq-note-input{font-style:italic;font-size:12px;color:#6b7280;text-align:left}
+.boq-cell-desc{font-size:11px}
 `;

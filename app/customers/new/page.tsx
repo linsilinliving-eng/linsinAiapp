@@ -17,6 +17,11 @@ const SOURCE_OPTIONS = [
 
 const CONTACT_ROLES = ['ผู้ซื้อ', 'บัญชี', 'โปรเจกต์', 'ติดต่อหลัก'];
 
+const WITHHOLDING = [
+  'ไม่หัก', 'หัก 1%', 'หัก 1.5%', 'หัก 2%', 'หัก 3%',
+  'หัก 3% ครั้งเดียว', 'หัก 3% ตลอดไป', 'หัก 5%', 'หัก 10%', 'หัก 20%',
+];
+
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface AddressForm {
@@ -56,7 +61,7 @@ const emptyContact = (): ContactForm => ({
 const CSS = `
 .wiz-root{min-height:100vh;background:#f0f1f3;font-family:'Sarabun',sans-serif;font-size:15px;padding:32px 20px 80px}
 .wiz-root *{box-sizing:border-box}
-.wiz-card{max-width:680px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e2e4e9;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07)}
+.wiz-card{max-width:700px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e2e4e9;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07)}
 .wiz-header{background:linear-gradient(135deg,#1a1d23,#2d3139);padding:24px 28px;color:#fff}
 .wiz-header h1{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:.01em}
 .wiz-header p{font-size:13px;opacity:.6;margin:0}
@@ -86,6 +91,8 @@ const CSS = `
 .wiz-select:focus{border-color:#374151;outline:none;background:#fff}
 .wiz-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .wiz-row3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px}
+.wiz-row-21{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+.wiz-row-3eq{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .wiz-auto-tag{
   display:inline-block;background:#f0f1f3;color:#374151;
   border:1px solid #d1d5db;border-radius:4px;padding:1px 8px;font-size:12px;font-weight:600;
@@ -125,6 +132,11 @@ const CSS = `
   padding:0 4px;line-height:1;
 }
 .wiz-remove-btn:hover{color:#c0392b}
+.wiz-roles-row{display:flex;align-items:flex-start;gap:8px;margin-top:4px}
+.wiz-roles-left{flex:1}
+.wiz-wht-right{display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:22px}
+.wiz-wht-label{font-size:13px;color:#374151;font-weight:600;white-space:nowrap}
+.wiz-wht-select{width:auto;min-width:140px}
 .wiz-review-block{
   background:#fafafa;border:1px solid #e2e4e9;border-radius:10px;
   padding:14px 16px;margin-bottom:12px;
@@ -150,6 +162,9 @@ const CSS = `
 .wiz-btn-next:disabled,.wiz-btn-save:disabled{opacity:.4;cursor:not-allowed}
 .wiz-error{color:#c0392b;font-size:12px;margin-top:4px}
 .wiz-info{background:#f0f1f3;border-left:3px solid #374151;border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:#374151;margin-bottom:14px}
+.wiz-info-row{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f0f1f3;border-left:3px solid #374151;border-radius:0 8px 8px 0;padding:8px 14px;margin-bottom:14px}
+.wiz-info-row span{font-size:13px;color:#374151;flex:1}
+.wiz-info-row .wiz-input{width:130px;margin:0;flex-shrink:0}
 .wiz-success{
   text-align:center;padding:48px 28px;
 }
@@ -166,6 +181,7 @@ export default function NewCustomerPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Step 1: basic info
+  const [cusCodeInput, setCusCodeInput] = useState('');
   const [cusType, setCusType] = useState<'individual' | 'company'>('company');
   const [cusName, setCusName] = useState('');
   const [taxId, setTaxId] = useState('');
@@ -178,6 +194,7 @@ export default function NewCustomerPage() {
 
   // Step 3: contacts
   const [contacts, setContacts] = useState<ContactForm[]>([emptyContact()]);
+  const [withholdingTax, setWithholdingTax] = useState('ไม่หัก');
 
   // Step 4: source channels
   const [sources, setSources] = useState<string[]>([]);
@@ -192,7 +209,6 @@ export default function NewCustomerPage() {
   const validate1 = () => {
     const e: Record<string, string> = {};
     if (!cusName.trim()) e.cusName = 'กรุณาระบุชื่อ';
-    if (!businessType) e.businessType = 'กรุณาเลือกประเภทธุรกิจ';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -226,6 +242,7 @@ export default function NewCustomerPage() {
     setSaving(true);
     try {
       const body = {
+        cus_code_manual: cusCodeInput.trim() || null,
         cus_type: cusType,
         cus_name: cusName,
         nickname: null,
@@ -238,6 +255,7 @@ export default function NewCustomerPage() {
         commission_type: commType,
         commission_value: commType !== 'none' ? Number(commValue) : 0,
         credit_day: Number(creditDay),
+        withholding_tax: withholdingTax,
         remark: remark || null,
         address: addresses[0] || null,
         contact: contacts[0] || null,
@@ -340,7 +358,10 @@ export default function NewCustomerPage() {
           {/* ─── STEP 1: ข้อมูลชื่อบริษัท ─────────────────────────── */}
           {!saved && step === 1 && (
             <div className="wiz-body">
-              <div className="wiz-info">รหัสลูกค้าและรหัสหมวด (IND/COR) จะถูกสร้างโดยอัตโนมัติ</div>
+              <div className="wiz-info-row">
+                <span>รหัสลูกค้า (C0001...) และรหัสหมวด (IND/COR) จะถูกสร้างอัตโนมัติถ้าไม่ระบุ</span>
+                <input className="wiz-input" value={cusCodeInput} onChange={e => setCusCodeInput(e.target.value)} placeholder="C0001" title="รหัสลูกค้า (ไม่บังคับ)" />
+              </div>
 
               <div className="wiz-field">
                 <label className="wiz-label">ประเภทลูกค้า <span className="req">*</span></label>
@@ -365,48 +386,51 @@ export default function NewCustomerPage() {
                 </div>
               </div>
 
-              <div className="wiz-field">
-                <label className="wiz-label">ชื่อ{cusType === 'company' ? 'บริษัท' : ''} <span className="req">*</span></label>
-                <input
-                  className={`wiz-input ${errors.cusName ? 'error' : ''}`}
-                  value={cusName}
-                  onChange={e => { setCusName(e.target.value); setErrors(p => ({ ...p, cusName: '' })); }}
-                  placeholder={cusType === 'company' ? 'บริษัท ... จำกัด' : 'ชื่อ-นามสกุล'}
-                />
-                {errors.cusName && <div className="wiz-error">{errors.cusName}</div>}
+              <div className="wiz-row-21">
+                <div className="wiz-field">
+                  <label className="wiz-label">ชื่อ{cusType === 'company' ? 'บริษัท' : ''} <span className="req">*</span></label>
+                  <input
+                    className={`wiz-input ${errors.cusName ? 'error' : ''}`}
+                    value={cusName}
+                    onChange={e => { setCusName(e.target.value); setErrors(p => ({ ...p, cusName: '' })); }}
+                    placeholder={cusType === 'company' ? 'บริษัท ... จำกัด' : 'ชื่อ-นามสกุล'}
+                  />
+                  {errors.cusName && <div className="wiz-error">{errors.cusName}</div>}
+                </div>
+                <div className="wiz-field">
+                  <label className="wiz-label">ประเภทธุรกิจ</label>
+                  <input
+                    list="biz-type-list"
+                    className={`wiz-input ${errors.businessType ? 'error' : ''}`}
+                    value={businessType}
+                    onChange={e => { setBusinessType(e.target.value); setErrors(p => ({ ...p, businessType: '' })); }}
+                    placeholder="เลือกหรือพิมพ์..."
+                  />
+                  <datalist id="biz-type-list">
+                    {BUSINESS_TYPES.map(b => <option key={b} value={b} />)}
+                  </datalist>
+                  {errors.businessType && <div className="wiz-error">{errors.businessType}</div>}
+                </div>
               </div>
 
-              <div className="wiz-row">
+              <div className="wiz-row-3eq">
                 <div className="wiz-field">
                   <label className="wiz-label">เลขประจำตัวผู้เสียภาษี</label>
                   <input className="wiz-input" value={taxId} onChange={e => setTaxId(e.target.value)} placeholder="13 หลัก" maxLength={13} />
                 </div>
                 <div className="wiz-field">
-                  <label className="wiz-label">ประเภทธุรกิจ <span className="req">*</span></label>
-                  <select className={`wiz-select ${errors.businessType ? 'error' : ''}`} value={businessType} onChange={e => { setBusinessType(e.target.value); setErrors(p => ({ ...p, businessType: '' })); }}>
-                    <option value="">— เลือกประเภท —</option>
-                    {BUSINESS_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+                  <label className="wiz-label">สาขา</label>
+                  <select title="สาขา" className="wiz-select" value={branchType} onChange={e => setBranchType(e.target.value as any)}>
+                    <option value="-">— ไม่ระบุ</option>
+                    <option value="HO">HO (สำนักงานใหญ่)</option>
+                    <option value="BR">BR (สาขา)</option>
                   </select>
-                  {errors.businessType && <div className="wiz-error">{errors.businessType}</div>}
+                </div>
+                <div className="wiz-field">
+                  <label className="wiz-label">เลขที่สาขา</label>
+                  <input className="wiz-input" value={branchNo} onChange={e => setBranchNo(e.target.value)} placeholder="เช่น 00001" disabled={branchType === '-'} />
                 </div>
               </div>
-
-              {cusType === 'company' && (
-                <div className="wiz-row">
-                  <div className="wiz-field">
-                    <label className="wiz-label">สาขา</label>
-                    <select className="wiz-select" value={branchType} onChange={e => setBranchType(e.target.value as any)}>
-                      <option value="-">— ไม่ระบุ</option>
-                      <option value="HO">HO (สำนักงานใหญ่)</option>
-                      <option value="BR">BR (สาขา)</option>
-                    </select>
-                  </div>
-                  <div className="wiz-field">
-                    <label className="wiz-label">เลขที่สาขา</label>
-                    <input className="wiz-input" value={branchNo} onChange={e => setBranchNo(e.target.value)} placeholder="เช่น 00001" disabled={branchType === '-'} />
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -432,7 +456,7 @@ export default function NewCustomerPage() {
                     {errors[`addr_${i}`] && <div className="wiz-error">{errors[`addr_${i}`]}</div>}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 0.8fr', gap: 10, marginBottom: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 0.8fr', gap: 10, marginBottom: 10 }}>
                     <div>
                       <label className="wiz-label">จังหวัด</label>
                       <select className="wiz-select" value={a.province} onChange={e => {
@@ -535,24 +559,31 @@ export default function NewCustomerPage() {
                     </div>
                   </div>
 
-                  <div className="wiz-field">
-                    <label className="wiz-label">ตำแหน่ง / บทบาท</label>
-                    <div className="wiz-checks">
-                      {CONTACT_ROLES.map(role => (
-                        <label key={role} className={`wiz-check-chip ${c.roles.includes(role) ? 'selected' : ''}`} onClick={() => toggleRole(i, role)}>
-                          {role}
-                        </label>
-                      ))}
+                  <div className="wiz-roles-row">
+                    <div className="wiz-roles-left">
+                      <label className="wiz-label">ตำแหน่ง / บทบาท</label>
+                      <div className="wiz-checks">
+                        {CONTACT_ROLES.map(role => (
+                          <label key={role} className={`wiz-check-chip ${c.roles.includes(role) ? 'selected' : ''}`} onClick={() => toggleRole(i, role)}>
+                            {role}
+                          </label>
+                        ))}
+                      </div>
                     </div>
+                    {i === 0 && (
+                      <div className="wiz-wht-right">
+                        <span className="wiz-wht-label">💳 หัก ณ ที่จ่าย</span>
+                        <select
+                          title="หัก ณ ที่จ่าย"
+                          className={`wiz-select wiz-wht-select`}
+                          value={withholdingTax}
+                          onChange={e => setWithholdingTax(e.target.value)}
+                        >
+                          {WITHHOLDING.map(w => <option key={w} value={w}>{w}</option>)}
+                        </select>
+                      </div>
+                    )}
                   </div>
-
-                  <label className="wiz-flag-check">
-                    <input type="checkbox" checked={c.is_primary} onChange={e => {
-                      if (!e.target.checked) return;
-                      setContacts(prev => prev.map((x, idx) => ({ ...x, is_primary: idx === i })));
-                    }} />
-                    ⭐ ผู้ติดต่อหลัก
-                  </label>
                 </div>
               ))}
               <button className="wiz-add-btn" onClick={() => setContacts(p => [...p, { ...emptyContact(), is_primary: false }])}>

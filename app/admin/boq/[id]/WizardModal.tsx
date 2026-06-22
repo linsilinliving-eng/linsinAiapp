@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import Swal from 'sweetalert2';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -9,8 +10,8 @@ interface BoqRow {
   id: string; type: 'item' | 'note' | 'heading' | 'retail'; no?: string; size?: string; desc?: string;
   code?: string; faceW?: string; unitPrice?: string; qty?: string;
   price?: string; discount?: string; net?: string; rail?: string;
-  motor?: string; c13?: string; hook?: string; sewing?: string;
-  install?: string; unit?: string; total?: string;
+  motor?: string; c13?: string; hook?: string; acc1?: string; acc2?: string; acc3?: string; acc3p?: string; sewing?: string;
+  install?: string; sets?: string; unit?: string; total?: string;
 }
 
 interface Product {
@@ -50,7 +51,7 @@ interface DbSewingCombo {
   type_id: string;
   combo_key: string;
   label: string;
-  system: 'manual' | 'motor';
+  system: 'manual' | 'motor' | 'both';
   sewing_rate: number;
   setup_rate: number;
   sort_order: number;
@@ -64,22 +65,22 @@ interface SewingComboConfig {
   id: string;
   label: string;
   sub: string;
-  system: 'manual' | 'motor';
+  system: 'manual' | 'motor' | 'both';
   sewing: number;
   setup: number;
 }
 
 /* curtain type → product category */
 const TYPE_TO_CATEGORY: Record<string, string> = {
-  wave:     'ผ้าม่าน+ผ้าbackout+ผ้าซับหลัง',
-  lon:      'ผ้าม่าน+ผ้าbackout+ผ้าซับหลัง',
-  sfold:    'ผ้าม่าน+ผ้าbackout+ผ้าซับหลัง',
-  roman:    'ผ้าม่าน+ผ้าbackout+ผ้าซับหลัง',
-  roller:   '(แมนนวล+มอร์เตอร์) - มู่ลี่ไม้, ม่านม้วน',
-  wood:     '(แมนนวล+มอร์เตอร์) - มู่ลี่ไม้, ม่านม้วน',
-  net:      'มุ้งจีบ,  มุ้งลวด',
-  bay:      'ผ้าม่าน+ผ้าbackout+ผ้าซับหลัง',
-  hospital: 'ผ้าม่าน+ผ้าbackout+ผ้าซับหลัง',
+  wave:     'ผ้าม่าน',
+  lon:      'ผ้าม่าน',
+  sfold:    'ผ้าม่าน',
+  roman:    'ผ้าม่าน',
+  roller:   'SUNSCREEN 1%-3%-5%,SUNSCREEN 6%-15%,BLACKOUT,2LAYER-อื่นๆ',
+  wood:     'มู่ลี่ไม้',
+  net:      'มุ้งจีบ-ประตู,มุ้งจีบ-หน้าต่าง',
+  bay:      'ผ้าม่าน',
+  hospital: 'ผ้าม่าน',
 };
 
 interface Props {
@@ -87,6 +88,7 @@ interface Props {
   onAdd: (row: BoqRow) => void;
   nextNo: number;
   editRow?: BoqRow;
+  startStep?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -96,8 +98,8 @@ let _uid = 0;
 const nid = () => `row_${++_uid}_${Math.random().toString(36).slice(2, 7)}`;
 
 const CURTAIN_TYPES = [
-  { id: 'wave',     label: 'ม่านจีบ',         sub: 'สูตร G1 · หลากหลายที่สุด', face: '1.20', unit: 'yd',  formula: 'wave', group: 'G1' },
-  { id: 'lon',      label: 'ม่านลอน',          sub: 'สูตร G1 · ทรงคลื่น',       face: '1.20', unit: 'yd',  formula: 'wave', group: 'G1' },
+  { id: 'wave',     label: 'ม่านจีบ',         sub: 'สูตร G1 · Pleated',        face: '1.20', unit: 'yd',  formula: 'wave', group: 'G1' },
+  { id: 'lon',      label: 'ม่านลอน',          sub: 'สูตร G1 · S-Curve',        face: '1.20', unit: 'yd',  formula: 'wave', group: 'G1' },
   { id: 'sfold',    label: 'ม่านลอน-กระดุม',   sub: 'สูตร G1 · S-Fold',         face: '1.40', unit: 'yd',  formula: 'sfold', group: 'G1' },
   { id: 'roman',    label: 'ม่านพับ',           sub: 'สูตร G4 · Roman',          face: '—',   unit: 'sqy', formula: 'sqy',  group: 'G4' },
   { id: 'roller',   label: 'ม่านม้วน',          sub: 'สูตร G2 · Sunscreen / Blackout', face: '—', unit: 'sqy', formula: 'sqy', group: 'G2' },
@@ -121,7 +123,7 @@ const SYSTEMS_MAIN = [
 const FABRIC_OPACITY = [
   { id: 'thick'    as const, label: 'ทึบ',        sub: 'Dimout · ซับหลัง',            icon: '🌑' },
   { id: 'sheer'    as const, label: 'โปร่ง',       sub: 'Sheer · Voile · ลูกไม้',      icon: '🌤️' },
-  { id: 'blackout' as const, label: 'Blackout',  sub: 'Blackout 100% · ซับหลัง',     icon: '⬛' },
+  { id: 'blackout' as const, label: 'Backout',  sub: 'Backout 100% · ซับหลัง',     icon: '⬛' },
 ];
 const NEEDS_OPACITY = new Set(['wave','lon','sfold','roman','bay','hospital']);
 
@@ -171,6 +173,7 @@ function parseEditRow(row: BoqRow) {
   const desc0 = parts[0]?.trim() ?? '';
   const dir0  = parts[1]?.trim() ?? '';
   const sys0  = parts[2]?.trim() ?? '';
+  const ceil0 = parts[3]?.trim() ?? '';
 
   let typeId = '';
   const sortedTypes = [...ALL_TYPES].sort((a, b) => b.label.length - a.label.length);
@@ -179,12 +182,18 @@ function parseEditRow(row: BoqRow) {
   }
 
   const fabricOpacity: 'blackout'|'thick'|'sheer'|'' =
-    desc0.includes('Blackout') ? 'blackout' : desc0.includes('ทึบ') ? 'thick' : desc0.includes('โปร่ง') ? 'sheer' : '';
+    (desc0.includes('Backout') || desc0.includes('Blackout')) ? 'blackout' : desc0.includes('ทึบ') ? 'thick' : desc0.includes('โปร่ง') ? 'sheer' : '';
 
-  let direction = 'center';
-  for (const d of [...DIRECTIONS, ...SFOLD_OPENINGS]) {
-    if (dir0 === d.label) { direction = d.id; break; }
+  /* backward compat: old data stored motor-pos in dir0 */
+  const motorFromDir = MOTOR_OPENINGS.find(d => d.label === dir0);
+  let direction = '';
+  if (!motorFromDir) {
+    for (const d of [...DIRECTIONS, ...SFOLD_OPENINGS]) {
+      if (dir0 === d.label) { direction = d.id; break; }
+    }
   }
+  const motorSide0 = parts[4]?.trim() ?? '';
+  const motorSide = MOTOR_OPENINGS.find(d => d.label === motorSide0)?.id ?? motorFromDir?.id ?? '';
 
   const systemMain: 'manual'|'motor' = sys0.includes('มอเตอร์') ? 'motor' : 'manual';
   const manualRope = sys0.includes('เชือกดึง');
@@ -215,10 +224,10 @@ function parseEditRow(row: BoqRow) {
   const face0 = parseFloat((!row.faceW || row.faceW === '—') ? '' : (row.faceW ?? '')) || 0;
   if (storedQtyN > 0 && w0 > 0 && h0 > 0) {
     let base = 0;
-    if (typeId === 'sfold') {
+    if (typeId === 'sfold' || typeId === 'wave') {
       const loomW = face0 || 1.4;
       base = ((w0 * 2.5) / loomW) * (h0 + 0.3) / 0.9;
-    } else if (['wave','lon','bay','hospital'].includes(typeId)) {
+    } else if (['lon','bay','hospital'].includes(typeId)) {
       const fw = face0 || 1.2;
       base = (w0 * fw * (h0 + 0.5)) / 0.9144;
     }
@@ -229,9 +238,9 @@ function parseEditRow(row: BoqRow) {
   }
 
   return {
-    typeId, fabricOpacity, direction, systemMain, manualRope, comboId,
-    motorType    : 'RTS' as 'RTS' | 'WT',
-    ceilingType  : '',
+    typeId, fabricOpacity, direction, motorSide, systemMain, manualRope, comboId,
+    motorType    : (sys0.includes('WT') ? 'WT' : 'RTS') as 'RTS' | 'WT',
+    ceilingType  : CEILING_TYPES.find(c => c.id === ceil0)?.id ?? '',
     selectedCode : row.code ?? '',
     width        : sm?.[1] ?? '',
     height       : sm?.[2] ?? '',
@@ -241,6 +250,15 @@ function parseEditRow(row: BoqRow) {
     railPrice    : toPrice(row.rail),
     motorPrice   : toPrice(row.motor),
     panels,
+    acc1Price: (row.c13 && row.c13 !== '-' && row.c13 !== '300')
+      ? row.c13.replace(/,/g, '').replace(/[^0-9.]/g, '') : '',
+    acc2Price: (row.hook && row.hook !== '-' && row.hook !== '300')
+      ? row.hook.replace(/,/g, '').replace(/[^0-9.]/g, '') : '',
+    acc1Label: row.acc1 ?? '',
+    acc2Label: row.acc2 ?? '',
+    acc3Label: row.acc3 ?? '',
+    acc3Price: (row.acc3p && row.acc3p !== '-') ? row.acc3p.replace(/,/g, '').replace(/[^0-9.]/g, '') : '',
+    railQty: (row.sets && row.sets !== '-' && row.sets !== '0') ? row.sets : '1',
   };
 }
 
@@ -293,12 +311,13 @@ const ICONS: Record<string, ReactElement> = {
 /* ------------------------------------------------------------------ */
 /*  Component                                                           */
 /* ------------------------------------------------------------------ */
-export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) {
+export default function WizardModal({ onClose, onAdd, nextNo, editRow, startStep }: Props) {
   const editMode     = !!editRow;
   const init         = editRow ? parseEditRow(editRow) : null;
-  const initIsSfold  = (init?.typeId ?? '') === 'sfold';
+  const initIsSfold    = (init?.typeId ?? '') === 'sfold';
+  const initIsFullFlow = ['sfold', 'wave', 'lon'].includes(init?.typeId ?? '');
 
-  const [step, setStep]         = useState(() => editMode ? (initIsSfold ? 7 : 5) : 1);
+  const [step, setStep]         = useState(() => startStep ?? (editMode ? (initIsFullFlow ? 8 : 5) : 1));
   const [isDirty, setIsDirty]   = useState(false);
   const markDirty = () => setIsDirty(true);
   const [typeId, setTypeId]     = useState(init?.typeId ?? '');
@@ -312,10 +331,11 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
   const [selectedCode, setSelectedCode]     = useState(init?.selectedCode ?? '');
   const [fabricOpacity, setFabricOpacity]   = useState<'blackout'|'thick'|'sheer'|''>(init?.fabricOpacity ?? '');
   /* system + direction */
-  const [systemMain, setSystemMain] = useState<'manual' | 'motor'>(init?.systemMain ?? 'manual');
+  const [systemMain, setSystemMain] = useState<'manual' | 'motor' | ''>(init?.systemMain ?? '');
   const [manualRope, setManualRope] = useState(init?.manualRope   ?? false);
   const [motorType, setMotorType]   = useState<'RTS' | 'WT'>(init?.motorType ?? 'RTS');
-  const [direction, setDirection]   = useState(init?.direction    ?? 'center');
+  const [direction, setDirection]   = useState(init?.direction    ?? '');
+  const [motorSide, setMotorSide]   = useState(init?.motorSide    ?? '');
   const [ceilingType, setCeilingType] = useState(init?.ceilingType ?? '');
 
   /* derived: final system value used in description + price */
@@ -335,18 +355,28 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
   const [unitPrice, setUnitPrice]     = useState(init?.unitPrice   ?? '');
   const [discountPct, setDiscountPct] = useState(init?.discountPct ?? '35');
   const [railPrice, setRailPrice]     = useState(init?.railPrice   ?? '');
+  const [railQty, setRailQty]         = useState(init?.railQty ?? '1');
   const [railSelectedId, setRailSelectedId] = useState<number | null>(null);
   const [railSystem, setRailSystem]   = useState<'RTS' | 'WT' | ''>('');
   const [motorPrice, setMotorPrice]   = useState(init?.motorPrice  ?? '');
   const [comboId, setComboId]         = useState(init?.comboId ?? (init?.systemMain === 'motor' ? 'motor' : 'normal'));
   /* accessories (motor + thick) */
-  const [acc1Label, setAcc1Label] = useState('');
-  const [acc1Price, setAcc1Price] = useState('');
-  const [acc2Label, setAcc2Label] = useState('');
-  const [acc2Price, setAcc2Price] = useState('');
+  const [acc1Label, setAcc1Label] = useState(init?.acc1Label ?? '');
+  const [acc1Price, setAcc1Price] = useState(init?.acc1Price ?? '');
+  const [acc1Qty,   setAcc1Qty]   = useState('1');
+  const [acc2Label, setAcc2Label] = useState(init?.acc2Label ?? '');
+  const [acc2Price, setAcc2Price] = useState(init?.acc2Price ?? '');
+  const [acc2Qty,   setAcc2Qty]   = useState('1');
+  const [acc3Label, setAcc3Label] = useState(init?.acc3Label ?? '');
+  const [acc3Price, setAcc3Price] = useState(init?.acc3Price ?? '');
   /* rail product picker */
   const [railProducts, setRailProducts] = useState<Product[]>([]);
   const [loadingRail, setLoadingRail] = useState(false);
+  /* accessory product list */
+  const [accProducts, setAccProducts] = useState<Product[]>([]);
+  const [wandProducts, setWandProducts] = useState<Product[]>([]);
+  const [hookProducts, setHookProducts] = useState<Product[]>([]);
+  const [manualAccProducts, setManualAccProducts] = useState<Product[]>([]);
   /* DB formula config */
   const [dbTypes,  setDbTypes]  = useState<DbTypeConfig[]>([]);
   const [dbCombos, setDbCombos] = useState<DbSewingCombo[]>([]);
@@ -420,12 +450,25 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
   const rawPrice = computed ? computed.qty * upNum : 0;
   const discNum = rawPrice * (parseFloat(discountPct) / 100);
   const net = rawPrice - discNum;
-  const railNum  = parseFloat(railPrice.replace(/,/g, '')) || 0;
+  const railNum    = parseFloat(railPrice.replace(/,/g, '')) || 0;
+  const railCost   = ((typeId === 'lon' || typeId === 'sfold' || typeId === 'wave') && system !== 'motor' && w > 0) ? railNum * w : railNum;
+  const railQtyNum = Math.max(1, parseInt(railQty) || 1);
   const motorNum = parseFloat(motorPrice.replace(/,/g, '')) || 0;
+  const acc1QtyNum = Math.max(1, parseInt(acc1Qty) || 1);
+  const acc2QtyNum = Math.max(1, parseInt(acc2Qty) || 1);
+  const acc1Num  = (parseFloat((acc1Price || '').replace(/,/g, '')) || 0) * acc1QtyNum;
+  const acc2Num  = (parseFloat((acc2Price || '').replace(/,/g, '')) || 0) * acc2QtyNum;
+  const acc3Num  = parseFloat((acc3Price || '').replace(/,/g, '')) || 0;
 
   const hasRailDropdown = !!(activeRailCat.motor || activeRailCat.manual);
   const hasCombos       = typeSewingCombos.length > 0;
-  const availableCombos = typeSewingCombos.filter(c => c.system === systemMain);
+  const isBlackoutLon    = (typeId === 'lon' || typeId === 'sfold' || typeId === 'wave') && fabricOpacity === 'blackout';
+  const isBackoutFabric  = fabricOpacity === 'blackout' && (typeId === 'lon' || typeId === 'sfold' || typeId === 'wave');
+  const availableCombos  = typeSewingCombos.filter(c => {
+    const isBackoutCombo = c.id.includes('backout');
+    if (isBackoutFabric) return isBackoutCombo;
+    return (c.system === systemMain || c.system === 'both') && !isBackoutCombo;
+  });
   const comboInfo       = hasCombos ? (typeSewingCombos.find(c => c.id === comboId) ?? availableCombos[0] ?? null) : null;
   const sewingAmt       = comboInfo && w > 0 ? Math.round(comboInfo.sewing * w) : 0;
   const setupAmt        = comboInfo ? comboInfo.setup : 0;
@@ -433,12 +476,17 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
   /* for types with rail dropdown (sfold/lon), motor is included in rail price → no separate motorNum
      for types with combos but no rail dropdown (wave/roman), motor input is still separate           */
   const total = hasCombos
-    ? net + railNum + (hasRailDropdown ? 0 : motorNum) + sewingAmt + setupAmt
-    : net + railNum + motorNum;
+    ? net + railCost + (hasRailDropdown ? 0 : motorNum) + sewingAmt + setupAmt + acc1Num + acc2Num + acc3Num
+    : net + railCost + motorNum;
 
   const systemLabel = system === 'motor' ? `มอเตอร์ ${motorType}` : system === 'manual-rope' ? 'แมนวล-เชือกดึง' : 'แมนวล';
   const dirs = isSfold ? SFOLD_OPENINGS : DIRECTIONS;
   const dirLabel = dirs.find(d => d.id === direction)?.label ?? direction;
+  const motorSideLabel = MOTOR_OPENINGS.find(d => d.id === motorSide)?.label ?? '';
+
+  /* auto-search init flag — pre-fill productQ with selectedCode once when entering fabric step in edit mode */
+  const editProductInitRef = useRef(false);
+  const handlingRef = useRef(false);
 
   /* fetch products when the fabric step is reached (re-fetch if type changes) */
   useEffect(() => {
@@ -447,15 +495,29 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
     setAllProducts([]);
     setProductsFetched(false);
     setLoadingProducts(true);
-    fetch(`/api/products?category=${encodeURIComponent(category)}`)
+    fetch(`/api/products?category=${encodeURIComponent(category)}&includeBoqUsed=true`)
       .then(r => r.json())
       .then((data: any) => {
         setAllProducts(Array.isArray(data) ? data : []);
         setLoadingProducts(false);
         setProductsFetched(true);
+        if (editMode && selectedCode && !editProductInitRef.current) {
+          editProductInitRef.current = true;
+          setProductQ(selectedCode);
+        }
       })
       .catch(() => setLoadingProducts(false));
   }, [step, typeId]);
+
+  /* clear acc/motor fields when system changes — skip first mount so edit-mode values are preserved */
+  const systemChangeInitRef = useRef(true);
+  useEffect(() => {
+    if (systemChangeInitRef.current) { systemChangeInitRef.current = false; return; }
+    setAcc1Label(''); setAcc1Price('');
+    setAcc2Label(''); setAcc2Price('');
+    setAcc3Label(''); setAcc3Price('');
+    setMotorPrice('');
+  }, [systemMain]);
 
   /* auto-select combo based on system + height range rules — skip first mount so edit-mode comboId is preserved */
   const comboInitRef   = useRef(true);
@@ -472,22 +534,68 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
       c.type_id === typeId && c.is_active && (c.height_min != null || c.height_max != null)
     );
 
+    const isBackoutMode = fabricOpacity === 'blackout' && (typeId === 'lon' || typeId === 'sfold' || typeId === 'wave');
     if (hasHeightRules) {
-      /* pick the combo whose H range covers current h */
-      const candidates = dbCombos.filter(c =>
-        c.type_id === typeId && c.system === systemMain && c.is_active &&
-        (c.height_min == null || h >  Number(c.height_min)) &&
-        (c.height_max == null || h <= Number(c.height_max))
-      );
-      const pick = candidates[0] ?? dbCombos.find(c => c.type_id === typeId && c.system === systemMain && c.is_active);
+      const candidates = dbCombos.filter(c => {
+        if (c.type_id !== typeId || !c.is_active) return false;
+        const isBackoutCombo = c.combo_key.includes('backout');
+        if (isBackoutMode) {
+          if (!isBackoutCombo) return false;
+        } else {
+          if (isBackoutCombo || c.system !== systemMain) return false;
+        }
+        return (c.height_min == null || h > Number(c.height_min)) &&
+               (c.height_max == null || h <= Number(c.height_max));
+      });
+      const fallback = dbCombos.find(c => {
+        if (c.type_id !== typeId || !c.is_active) return false;
+        const isBackoutCombo = c.combo_key.includes('backout');
+        return isBackoutMode ? isBackoutCombo : (!isBackoutCombo && c.system === systemMain);
+      });
+      const pick = candidates[0] ?? fallback;
       if (pick) setComboId(pick.combo_key);
     } else {
-      /* no height rules (e.g. roman): only reset when system or type actually changed */
       if (!systemOrTypeChanged) return;
-      const def = typeSewingCombos.find(c => c.system === systemMain);
+      const def = typeSewingCombos.find(c => c.system === systemMain && !c.id.includes('backout'));
       if (def) setComboId(def.id);
     }
-  }, [systemMain, typeId, h, dbCombos, typeSewingCombos]);
+  }, [systemMain, typeId, h, fabricOpacity, dbCombos, typeSewingCombos]);
+
+  /* auto-save when rail/acc selections change in edit mode step 8 */
+  useEffect(() => {
+    if (step !== STEP_PRICE || !editMode || !typeInfo || !editRow || !isDirty) return;
+    const opacityPart = opacityInfo ? `-${opacityInfo.label}` : '';
+    const ceilingPart = isFullFlow && ceilingType ? ` | ${ceilingType}` : '';
+    const motorSidePart = system === 'motor' && motorSideLabel ? ` | ${motorSideLabel}` : '';
+    const desc = `${typeInfo.label}${opacityPart} | ${dirLabel} | ${systemLabel}${ceilingPart}${motorSidePart}`;
+    const sizeStr = w && h ? `W.${parseFloat(width).toFixed(2)}×H.${parseFloat(height).toFixed(2)}` : '';
+    const row: BoqRow = {
+      id: editRow.id, type: 'item', no: editRow.no,
+      size: sizeStr, desc,
+      code: selectedCode, faceW: face,
+      unitPrice: upNum > 0 ? String(Math.round(upNum)) : '0',
+      qty: computed?.label ?? '',
+      price: f2(rawPrice),
+      discount: discNum ? `-${f2(discNum)}` : '0',
+      net: f2(net),
+      rail: railCost > 0 ? Math.round(railCost).toLocaleString('th-TH') : '—',
+      motor: hasCombos ? '-' : (system === 'motor' ? (motorNum > 0 ? Math.round(motorNum).toLocaleString('th-TH') : '-') : '-'),
+      c13: system === 'motor' ? '-' : (acc1Num > 0 ? Math.round(acc1Num).toLocaleString('th-TH') : '-'),
+      hook: system === 'motor' ? '-' : (acc2Num > 0 ? Math.round(acc2Num).toLocaleString('th-TH') : '-'),
+      acc1: acc1Label || undefined,
+      acc2: acc2Label || undefined,
+      acc3: acc3Label || undefined,
+      acc3p: system === 'motor'
+        ? ((acc1Num + acc2Num) > 0 ? Math.round(acc1Num + acc2Num).toLocaleString('th-TH') : undefined)
+        : (acc3Num > 0 ? Math.round(acc3Num).toLocaleString('th-TH') : undefined),
+      sewing: hasCombos && sewingAmt > 0 ? sewingAmt.toLocaleString('th-TH') : '—',
+      install: hasCombos && setupAmt > 0 ? setupAmt.toLocaleString('th-TH') : '—',
+      unit: 'ชุด',
+      total: f2(total * railQtyNum),
+    };
+    onAdd(row);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railSelectedId, acc1Label, acc2Label]);
 
   /* fetch formula config once on mount */
   useEffect(() => {
@@ -500,6 +608,49 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
       .catch(() => { /* keep hard-coded fallback */ });
   }, []);
 
+  /* fetch accessory products once when reaching ราคา step with motor */
+  useEffect(() => {
+    if (step !== STEP_PRICE || systemMain !== 'motor') return;
+    setAccProducts([]);
+    fetch(`/api/products?category=${encodeURIComponent('อุปกรณ์เสริมรางม่าน-มอร์เตอร์')}&ptype=${motorType}&includeBoqUsed=true`)
+      .then(r => r.json())
+      .then((data: any) => setAccProducts(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [step, systemMain, motorType]);
+
+  /* fetch ด้ามจูง + ตะขอ products for non-motor systems */
+  useEffect(() => {
+    if (step !== STEP_PRICE || systemMain === 'motor') return;
+    if (wandProducts.length === 0)
+      fetch(`/api/products?category=${encodeURIComponent('ด้ามจูง')}&includeBoqUsed=true`)
+        .then(r => r.json())
+        .then((data: any) => setWandProducts(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    if (hookProducts.length === 0)
+      fetch(`/api/products?category=${encodeURIComponent('ตะขอสายรวบม่าน')}&includeBoqUsed=true`)
+        .then(r => r.json())
+        .then((data: any) => setHookProducts(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    if (manualAccProducts.length === 0)
+      fetch(`/api/products?category=${encodeURIComponent('อุปกรณ์เสริมรางม่าน-แมนนวล')}&includeBoqUsed=true`)
+        .then(r => r.json())
+        .then((data: any) => setManualAccProducts(Array.isArray(data) ? data : []))
+        .catch(() => {});
+  }, [step, systemMain]);
+
+  /* auto-set ตะขอ qty: Pleated/S-Curve/S-Fold + manual (lon: thick only) */
+  useEffect(() => {
+    if (step !== STEP_PRICE || !isFullFlow || systemMain !== 'manual' || isBackoutFabric) return;
+    if (typeId === 'lon' && fabricOpacity !== 'thick') return;
+    setAcc2Qty(direction === 'center' ? '2' : '1');
+  }, [step, isFullFlow, typeId, systemMain, fabricOpacity, direction, isBackoutFabric]);
+
+  /* auto-update ด้ามจูง qty when direction changes */
+  useEffect(() => {
+    if (!acc1Label || systemMain === 'motor' || isBlackoutLon) return;
+    setAcc1Qty(direction === 'center' ? '2' : '1');
+  }, [direction, acc1Label, systemMain, isBlackoutLon]);
+
   /* fetch rail products when reaching ราคา step (re-fetch when system or rail categories change) */
   useEffect(() => {
     if (step !== STEP_PRICE) return;
@@ -507,7 +658,7 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
     if (!cat) { setRailProducts([]); return; }
     setRailProducts([]);
     setLoadingRail(true);
-    fetch(`/api/products?category=${encodeURIComponent(cat)}`)
+    fetch(`/api/products?category=${encodeURIComponent(cat)}&includeBoqUsed=true`)
       .then(r => r.json())
       .then((data: any) => {
         setRailProducts(Array.isArray(data) ? data : []);
@@ -520,15 +671,9 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
   const hasRailSystem = railProducts.some(p => p.ptype === 'RTS' || p.ptype === 'WT');
   const filteredRailProducts = useMemo(() => {
     if (!hasRailSystem) return railProducts;
-    const W = parseFloat(width);
-    return railProducts.filter(p => {
-      const matchSystem = p.ptype === motorType;
-      const w1 = parseFloat(p.width1 ?? '0');
-      const w2 = parseFloat(p.width2 ?? '99');
-      const matchWidth = isNaN(W) || (w1 <= W && W <= w2);
-      return matchSystem && matchWidth;
-    });
-  }, [railProducts, motorType, width, hasRailSystem]);
+    /* filter by ptype only — do NOT filter by width (gap in ranges causes missing items) */
+    return railProducts.filter(p => p.ptype === motorType);
+  }, [railProducts, motorType, hasRailSystem]);
 
   /* filter products: search query only */
   const filteredProducts = useMemo(() => {
@@ -554,16 +699,37 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
     }
     setSelectedCode(p.code);
     if (p.price > 0) setUnitPrice(String(p.price));
-    if (p.face_width && parseFloat(String(p.face_width)) > 0 && typeInfo?.formula === 'wave') {
+    if (p.face_width && parseFloat(String(p.face_width)) > 0) {
       setFaceOverride(String(p.face_width));
     }
   };
 
   const handleAdd = async () => {
+    if (handlingRef.current) return;
+    handlingRef.current = true;
+    try {
     if (editMode && !isDirty && editRow) { onAdd(editRow); onClose(); return; }
     if (!typeInfo) return;
-    const opacityPart = opacityInfo ? (isSfold ? ` ${opacityInfo.label}` : ` (${opacityInfo.label})`) : '';
-    const desc = `${typeInfo.label}${opacityPart} | ${dirLabel} | ${systemLabel}`;
+    if (system === 'motor' && (!acc1Label.trim() || !acc2Label.trim())) {
+      const missing = [!acc1Label.trim() && 'อุปกรณ์เสริม 1', !acc2Label.trim() && 'อุปกรณ์เสริม 2'].filter(Boolean).join(' และ ');
+      const { isConfirmed } = await Swal.fire({
+        title: `${missing} ยังว่างอยู่`,
+        text: 'ต้องการบันทึกโดยไม่ระบุอุปกรณ์เสริมไหม?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#1f2937',
+        cancelButtonColor: '#e5e7eb',
+        confirmButtonText: 'บันทึกต่อ',
+        cancelButtonText: 'ยกเลิก',
+        reverseButtons: true,
+        focusCancel: true,
+      });
+      if (!isConfirmed) { setTimeout(() => { handlingRef.current = false; }, 200); return; }
+    }
+    const opacityPart = opacityInfo ? `-${opacityInfo.label}` : '';
+    const ceilingPart = isFullFlow && ceilingType ? ` | ${ceilingType}` : '';
+    const motorSidePart = system === 'motor' && motorSideLabel ? ` | ${motorSideLabel}` : '';
+    const desc = `${typeInfo.label}${opacityPart} | ${dirLabel} | ${systemLabel}${ceilingPart}${motorSidePart}`;
     const sizeStr = w && h ? `W.${parseFloat(width).toFixed(2)}×H.${parseFloat(height).toFixed(2)}` : '';
     const row: BoqRow = {
       id: editRow?.id ?? nid(), type: 'item',
@@ -577,14 +743,21 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
       price: f2(rawPrice),
       discount: discNum ? `-${f2(discNum)}` : '0',
       net: f2(net),
-      rail: railNum > 0 ? Math.round(railNum).toLocaleString('th-TH') : '—',
-      motor: hasCombos ? '—' : (system === 'motor' ? (motorNum > 0 ? Math.round(motorNum).toLocaleString('th-TH') : '—') : '—'),
-      c13: system === 'motor' ? '—' : '300',
-      hook: system === 'motor' ? '—' : '300',
+      rail: railCost > 0 ? Math.round(railCost).toLocaleString('th-TH') : '—',
+      motor: hasCombos ? '-' : (system === 'motor' ? (motorNum > 0 ? Math.round(motorNum).toLocaleString('th-TH') : '-') : '-'),
+      c13: system === 'motor' ? '-' : (acc1Num > 0 ? Math.round(acc1Num).toLocaleString('th-TH') : '-'),
+      hook: system === 'motor' ? '-' : (acc2Num > 0 ? Math.round(acc2Num).toLocaleString('th-TH') : '-'),
+      acc1: acc1Label || undefined,
+      acc2: acc2Label || undefined,
+      acc3: acc3Label || undefined,
+      acc3p: system === 'motor'
+        ? ((acc1Num + acc2Num) > 0 ? Math.round(acc1Num + acc2Num).toLocaleString('th-TH') : undefined)
+        : (acc3Num > 0 ? Math.round(acc3Num).toLocaleString('th-TH') : undefined),
       sewing:  hasCombos && sewingAmt > 0 ? sewingAmt.toLocaleString('th-TH') : '—',
       install: hasCombos && setupAmt  > 0 ? setupAmt.toLocaleString('th-TH')  : '—',
+      sets: railQtyNum > 0 ? String(railQtyNum) : '0',
       unit: 'ชุด',
-      total: f2(total),
+      total: f2(total * railQtyNum),
     };
     /* mark selected products as boq_used */
     const idsToMark: number[] = [];
@@ -602,6 +775,10 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
     }
     onAdd(row);
     onClose();
+    handlingRef.current = false;
+    } catch {
+      handlingRef.current = false;
+    }
   };
 
   const pickType = (id: string) => {
@@ -616,13 +793,13 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
 
   const canNext =
     step === 1                      ? !!typeId :
-    step === 2                      ? true :
+    step === 2                      ? !!systemMain :
     isFullFlow && step === 3           ? !!fabricOpacity :
-    isFullFlow && step === 4           ? true :
+    isFullFlow && step === 4           ? (systemMain !== 'motor' || !!motorSide) :
     isFullFlow && step === STEP_CEILING ? !!ceilingType :
     step === STEP_FABRIC               ? (!isFullFlow && needsOpacity ? !!fabricOpacity : true) :
     step === STEP_SIZE              ? (w > 0 && h > 0) :
-    !!unitPrice && (system !== 'motor' || !hasRailDropdown || railNum > 0);
+    !!unitPrice && (system !== 'motor' || !hasRailDropdown || railNum > 0 || isBackoutFabric);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -685,7 +862,7 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
               </div>
 
               <div style={{ marginBottom:16 }}>
-                <SectionLabel color="#1F3A3A" label="กลุ่ม G1" sub="ม่านจีบ / ลอน — คิดปริมาณเป็นหลา (yd)" />
+                <SectionLabel color="#1F3A3A" label="กลุ่ม G1" sub="Pleated / S-Curve / S-Fold — คิดปริมาณเป็นหลา (yd)" />
                 <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12 }}>
                   {CURTAIN_TYPES.filter(t => t.group === 'G1').map(t => (
                     <TypeCard key={t.id} id={t.id} label={t.label} sub={t.sub} icon={ICONS[t.id]} selected={typeId === t.id} onSelect={pickType} />
@@ -748,7 +925,7 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
                   <div style={{ display:'flex',gap:10 }}>
                     <button onClick={() => { markDirty(); setManualRope(false); setStep(p => p + 1); }}
                       style={{ flex:1,padding:'9px 0',border:`1.5px solid ${!manualRope ? '#1F3A3A' : '#E5E0D5'}`,borderRadius:10,background:!manualRope?'#1F3A3A':'#fff',color:!manualRope?'#fff':'#374151',fontWeight:600,fontSize:13,cursor:'pointer',transition:'all .2s',display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
-                      🖐️ ปกติ
+                      🖐️ มือปัด
                     </button>
                     <button onClick={() => { markDirty(); setManualRope(true); setStep(p => p + 1); }}
                       style={{ flex:1,padding:'9px 0',border:`1.5px solid ${manualRope ? '#1F3A3A' : '#E5E0D5'}`,borderRadius:10,background:manualRope?'#1F3A3A':'#fff',color:manualRope?'#fff':'#374151',fontWeight:600,fontSize:13,cursor:'pointer',transition:'all .2s',display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
@@ -835,7 +1012,7 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
               </div>
               <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,maxWidth:480,margin:'0 auto' }}>
                 {SFOLD_OPENINGS.map(d => (
-                  <div key={d.id} onClick={() => { markDirty(); setDirection(d.id); setStep(p => p + 1); }}
+                  <div key={d.id} onClick={() => { markDirty(); setDirection(d.id); if (systemMain !== 'motor') setStep(p => p + 1); }}
                     style={{ borderRadius:16,padding:'28px 16px',border:`2px solid ${direction === d.id ? '#1F3A3A' : '#E5E0D5'}`,background: direction === d.id ? '#1F3A3A' : '#fff',cursor:'pointer',textAlign:'center',transition:'all .25s' }}>
                     <div style={{ fontSize:40,marginBottom:10,lineHeight:1 }}>{d.icon}</div>
                     <div style={{ fontWeight:700,fontSize:16,color: direction === d.id ? '#fff' : '#1F3A3A' }}>{d.label}</div>
@@ -845,14 +1022,14 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
               </div>
               {systemMain === 'motor' && (
                 <>
-                  <div style={{ fontSize:11,color:'#9ca3af',fontWeight:600,letterSpacing:'0.05em',textTransform:'uppercase',textAlign:'center',margin:'20px 0 10px' }}>ตำแหน่งมอเตอร์</div>
+                  <div style={{ fontSize:11,color:'#9ca3af',fontWeight:600,letterSpacing:'0.05em',textTransform:'uppercase',textAlign:'center',margin:'20px 0 10px' }}>ตำแหน่งมอเตอร์ <span style={{ color:'#dc2626' }}>*</span></div>
                   <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,maxWidth:260,margin:'0 auto' }}>
                     {MOTOR_OPENINGS.map(d => (
-                      <div key={d.id} onClick={() => { markDirty(); setDirection(d.id); setStep(p => p + 1); }}
-                        style={{ borderRadius:12,padding:'12px 10px',border:`2px solid ${direction === d.id ? '#1F3A3A' : '#E5E0D5'}`,background: direction === d.id ? '#1F3A3A' : '#fff',cursor:'pointer',textAlign:'center',transition:'all .25s' }}>
+                      <div key={d.id} onClick={() => { markDirty(); setMotorSide(d.id); setStep(p => p + 1); }}
+                        style={{ borderRadius:12,padding:'12px 10px',border:`2px solid ${motorSide === d.id ? '#1F3A3A' : '#E5E0D5'}`,background: motorSide === d.id ? '#1F3A3A' : '#fff',cursor:'pointer',textAlign:'center',transition:'all .25s' }}>
                         <div style={{ fontSize:24,marginBottom:6,lineHeight:1 }}>{d.icon}</div>
-                        <div style={{ fontWeight:700,fontSize:13,color: direction === d.id ? '#fff' : '#1F3A3A' }}>{d.label}</div>
-                        {direction === d.id && <div style={{ marginTop:6,fontSize:10,background:'rgba(255,255,255,0.15)',display:'inline-block',padding:'2px 8px',borderRadius:20,color:'#fff' }}>✓</div>}
+                        <div style={{ fontWeight:700,fontSize:13,color: motorSide === d.id ? '#fff' : '#1F3A3A' }}>{d.label}</div>
+                        {motorSide === d.id && <div style={{ marginTop:6,fontSize:10,background:'rgba(255,255,255,0.15)',display:'inline-block',padding:'2px 8px',borderRadius:20,color:'#fff' }}>✓</div>}
                       </div>
                     ))}
                   </div>
@@ -1137,33 +1314,126 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
                 <div style={{ fontSize:22,fontWeight:300,color:'#9ca3af',flexShrink:0 }}>ขั้นที่ {step}</div>
                 <div style={{ fontSize:22,fontWeight:300,color:'#1F3A3A' }}>{isSfold && systemMain === 'motor' ? 'เลือกรางมอเตอร์ + รุ่นมอเตอร์' : 'สินค้า + ราคา'}</div>
               </div>
-              <div style={{ display:'grid',gridTemplateColumns:'1.6fr 1fr',gap:20,maxWidth:680,margin:'0 auto' }}>
+              <div style={{ display:'grid',gridTemplateColumns:'1.4fr 1fr',gap:20,maxWidth:760,margin:'0 auto' }}>
                 <div style={{ display:'flex',flexDirection:'column',gap:14 }}>
                   {hasRailSystem && (
                     <div style={{ fontSize:11,color:'#9ca3af',fontWeight:600 }}>
                       ระบบ: <span style={{ color:'#1F3A3A' }}>{motorType}</span> · กว้าง {parseFloat(width) || '—'} m
                     </div>
                   )}
-                  <RailComboInput
-                    label={`ค่าราง / อุปกรณ์${hasCombos ? (systemMain === 'motor' ? ' (฿/ชุด)' : ' (฿/ม.)') : ' (฿)'}`}
-                    value={railPrice}
-                    onChange={v => { markDirty(); setRailPrice(v); }}
-                    onSelectId={id => setRailSelectedId(id)}
-                    products={filteredRailProducts}
-                    loading={loadingRail}
-                  />
-                  {system === 'motor' && fabricOpacity === 'thick' && (
-                    <>
-                      <div style={{ display:'grid',gridTemplateColumns:'2fr 1fr',gap:8,marginBottom:1 }}>
-                        <LabelInput label="อุปกรณ์เสริม 1" value={acc1Label} onChange={setAcc1Label} placeholder="เช่น รีโมท" />
-                        <LabelInput label="ราคา (฿)" value={acc1Price} onChange={setAcc1Price} placeholder="เช่น 1500" />
+                  <div>
+                    <div style={{ fontSize:12,color:'#dc2626',marginBottom:5,fontWeight:500 }}>
+                      {`ค่าราง / อุปกรณ์${hasCombos ? (systemMain === 'motor' ? ' (฿/ชุด)' : ' (฿/ม.)') : ' (฿)'}`}
+                    </div>
+                    {/* single grid — ราง + ตะขอ + ด้ามจูง share same column tracks */}
+                    <div style={{ display:'grid',gridTemplateColumns:'1fr 56px 70px',rowGap:8,columnGap:6 }}>
+                      {/* ── ราง row ── */}
+                      {!isBlackoutLon && <><RailComboInput label="" noLabel hidePrice value={railPrice}
+                        onChange={v => { markDirty(); setRailPrice(v); }}
+                        onSelectId={id => setRailSelectedId(id)}
+                        products={filteredRailProducts} loading={loadingRail} windowWidth={w} />
+                      <div>
+                        <div style={{ fontSize:11,color:'#6b7280',fontWeight:500,marginBottom:4 }}>จำนวน (ชุด)</div>
+                        <input type="number" min="1" value={railQty} onChange={e => { markDirty(); setRailQty(e.target.value); }}
+                          style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A',textAlign:'center' }}
+                          onFocus={e => (e.target.style.borderColor='#1F3A3A')} onBlur={e => (e.target.style.borderColor='#E5E0D5')} />
                       </div>
-                      <div style={{ display:'grid',gridTemplateColumns:'2fr 1fr',gap:8 }}>
-                        <LabelInput label="อุปกรณ์เสริม 2" value={acc2Label} onChange={setAcc2Label} placeholder="เช่น แบตเตอรี่" />
-                        <LabelInput label="ราคา (฿)" value={acc2Price} onChange={setAcc2Price} placeholder="เช่น 800" />
+                      <div>
+                        <div style={{ fontSize:11,color:'#6b7280',fontWeight:500,marginBottom:4 }}>ราคา (฿)</div>
+                        <input value={railPrice} onChange={e => { markDirty(); setRailPrice(e.target.value); }} placeholder="—"
+                          style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A',textAlign:'right' }}
+                          onFocus={e => (e.target.style.borderColor='#1F3A3A')} onBlur={e => (e.target.style.borderColor='#E5E0D5')} />
+                      </div></>}
+                      {/* ── ตะขอ row (conditional) ── */}
+                      {hasCombos && system !== 'motor' && !isBlackoutLon && (typeId !== 'lon' || fabricOpacity === 'thick') && <>
+                        <div>
+                          <div style={{ fontSize:11,color:'#6b7280',marginBottom:3 }}>ตะขอ</div>
+                          <select title="ตะขอ" value={acc2Label} onChange={e => { markDirty(); const v=e.target.value; setAcc2Label(v); if (!v) { setAcc2Price(''); return; } const p=hookProducts.find(pr=>pr.name===v||pr.code===v); if(p&&p.price>0) setAcc2Price(String(Math.round(p.price))); }}
+                            style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:12,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:acc2Label?'#1F3A3A':'#9ca3af',cursor:'pointer' }}>
+                            <option value="">— เลือก —</option>
+                            {hookProducts.map(p => <option key={p.id} value={p.name||p.code}>{p.name||p.code}{p.price>0?` (฿${p.price.toLocaleString('th-TH')})`:''}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div style={{ fontSize:11,color:'#6b7280',fontWeight:500,marginBottom:4 }}>จำนวน (ชุด)</div>
+                          <input title="จำนวน ตะขอ" type="number" min="1" value={acc2Label ? acc2Qty : ''} disabled={!acc2Label} onChange={e=>{markDirty();setAcc2Qty(e.target.value);}}
+                            style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A',textAlign:'center' }}
+                            onFocus={e=>(e.target.style.borderColor='#1F3A3A')} onBlur={e=>(e.target.style.borderColor='#E5E0D5')} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize:11,color:'#6b7280',fontWeight:500,marginBottom:4 }}>ราคา (฿)</div>
+                          <input value={acc2Price} onChange={e=>{markDirty();setAcc2Price(e.target.value);}} placeholder="0"
+                            style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A',textAlign:'right' }}
+                            onFocus={e=>(e.target.style.borderColor='#1F3A3A')} onBlur={e=>(e.target.style.borderColor='#E5E0D5')} />
+                        </div>
+                      </>}
+                      {/* ── ด้ามจูง row ── */}
+                      {hasCombos && system !== 'motor' && !isBlackoutLon && <>
+                        <div>
+                          <div style={{ fontSize:11,color:'#6b7280',marginBottom:3 }}>ด้ามจูง</div>
+                          <select title="ด้ามจูง" value={acc1Label} onChange={e => { markDirty(); const v=e.target.value; setAcc1Label(v); if (!v) { setAcc1Price(''); return; } const p=wandProducts.find(pr=>pr.name===v||pr.code===v); if(p&&p.price>0) setAcc1Price(String(Math.round(p.price))); setAcc1Qty(direction === 'center' ? '2' : '1'); }}
+                            style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:12,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:acc1Label?'#1F3A3A':'#9ca3af',cursor:'pointer' }}>
+                            <option value="">— เลือก —</option>
+                            {wandProducts.map(p => <option key={p.id} value={p.name||p.code}>{p.name||p.code}{p.price>0?` (฿${p.price.toLocaleString('th-TH')})`:''}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div style={{ fontSize:11,color:'#6b7280',fontWeight:500,marginBottom:4 }}>จำนวน (ชุด)</div>
+                          <input title="จำนวน ด้ามจูง" type="number" min="1" value={acc1Label ? acc1Qty : ''} disabled={!acc1Label} onChange={e=>{markDirty();setAcc1Qty(e.target.value);}}
+                            style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A',textAlign:'center' }}
+                            onFocus={e=>(e.target.style.borderColor='#1F3A3A')} onBlur={e=>(e.target.style.borderColor='#E5E0D5')} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize:11,color:'#6b7280',fontWeight:500,marginBottom:4 }}>ราคา (฿)</div>
+                          <input value={acc1Price} onChange={e=>{markDirty();setAcc1Price(e.target.value);}} placeholder="0"
+                            style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A',textAlign:'right' }}
+                            onFocus={e=>(e.target.style.borderColor='#1F3A3A')} onBlur={e=>(e.target.style.borderColor='#E5E0D5')} />
+                        </div>
+                      </>}
+                      {/* ── อุปกรณ์เสริม rows (motor only) — col1=dropdown(1fr), col2-3=ราคา ── */}
+                      {system === 'motor' && ([
+                        { n: 1, label: acc1Label, price: acc1Price, setLabel: setAcc1Label, setPrice: setAcc1Price },
+                        { n: 2, label: acc2Label, price: acc2Price, setLabel: setAcc2Label, setPrice: setAcc2Price },
+                      ] as const).map(({ n, label, price, setLabel, setPrice }) => (
+                        <Fragment key={n}>
+                          <div>
+                            <div style={{ fontSize:11,color:'#6b7280',marginBottom:3 }}>อุปกรณ์เสริม {n}</div>
+                            <select value={label} onChange={e => { markDirty(); const v=e.target.value; setLabel(v); if (!v) { setPrice(''); return; } const p=accProducts.find(pr=>pr.name===v||pr.code===v); if(p&&p.price>0) setPrice(String(p.price)); }}
+                              style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:label?'#1F3A3A':'#9ca3af',cursor:'pointer' }}>
+                              <option value="">— เลือกอุปกรณ์ —</option>
+                              {accProducts.map(p => (
+                                <option key={p.id} value={p.name||p.code}>{p.name||p.code}{p.price>0?` (฿${p.price.toLocaleString('th-TH')})`:''}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div style={{ gridColumn:'2 / span 2' }}>
+                            <div style={{ fontSize:11,color:'#6b7280',fontWeight:500,marginBottom:4 }}>ราคา (฿)</div>
+                            <input value={price} onChange={e=>{ markDirty(); setPrice(e.target.value); }} placeholder="เช่น 1500"
+                              style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 8px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A',textAlign:'right' }}
+                              onFocus={e=>(e.target.style.borderColor='#1F3A3A')} onBlur={e=>(e.target.style.borderColor='#E5E0D5')} />
+                          </div>
+                        </Fragment>
+                      ))}
+                    </div>
+                    {railQtyNum > 1 && railCost > 0 && (
+                      <div style={{ fontSize:11,color:'#9ca3af',marginTop:4,whiteSpace:'nowrap' }}>× {railQtyNum} ชุด</div>
+                    )}
+                    {hasCombos && system !== 'motor' && (
+                      <div style={{ display:'grid',gridTemplateColumns:'1fr 56px 70px',rowGap:8,columnGap:6,marginTop:0 }}>
+                        <div>
+                          <div style={{ fontSize:11,color:'#6b7280',marginBottom:3 }}>อุปกรณ์เสริม</div>
+                          <select title="อุปกรณ์เสริม" value={acc3Label} onChange={e => { markDirty(); const v=e.target.value; setAcc3Label(v); if (!v) { setAcc3Price(''); return; } const p=manualAccProducts.find(pr=>pr.name===v||pr.code===v); if(p&&p.price>0) setAcc3Price(String(Math.round(p.price))); }}
+                            style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 12px',fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:acc3Label?'#1F3A3A':'#9ca3af',cursor:'pointer' }}>
+                            <option value="">— เลือกอุปกรณ์ —</option>
+                            {manualAccProducts.map(p => <option key={p.id} value={p.name||p.code}>{p.name||p.code}{p.price>0?` (฿${p.price.toLocaleString('th-TH')})`:''}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ gridColumn:'2 / span 2', marginTop:-3 }}>
+                          <LabelInput label="ราคา (฿)" value={acc3Price} onChange={v=>{markDirty();setAcc3Price(v);}} placeholder="0" />
+                        </div>
                       </div>
-                    </>
-                  )}
+                    )}
+                  </div>
                   {hasCombos && comboInfo && (
                     <div>
                       <div style={{ fontSize:12,color:'#6b7280',marginBottom:7,fontWeight:500 }}>ชุดคิด (ค่าเย็บ + ค่าติดตั้ง)</div>
@@ -1196,13 +1466,22 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
                   <SumRow label="ราคาผ้า" value={`${f2(rawPrice)} ฿`} />
                   <SumRow label={`ส่วนลด ${discountPct}%`} value={`-${f2(discNum)} ฿`} gold />
                   <SumRow label="ราคาสินค้า" value={`${f2(net)} ฿`} />
-                  {railNum > 0 && <SumRow label="ราง/อุปกรณ์" value={`${Math.round(railNum).toLocaleString('th-TH')} ฿`} />}
+                  {railCost > 0 && <SumRow label="ราง/อุปกรณ์" value={`${Math.round(railCost).toLocaleString('th-TH')} ฿`} />}
+                  {hasCombos && system !== 'motor' && acc1Num > 0 && <SumRow label="ด้ามจูง" value={`${Math.round(acc1Num).toLocaleString('th-TH')} ฿`} />}
+                  {hasCombos && system !== 'motor' && acc2Num > 0 && <SumRow label="ตะขอ" value={`${Math.round(acc2Num).toLocaleString('th-TH')} ฿`} />}
+                  {hasCombos && system !== 'motor' && acc3Num > 0 && <SumRow label="อุปกรณ์เสริม" value={`${Math.round(acc3Num).toLocaleString('th-TH')} ฿`} />}
+                  {system === 'motor' && acc1Num > 0 && <SumRow label="อุปกรณ์เสริม 1" value={`${Math.round(acc1Num).toLocaleString('th-TH')} ฿`} />}
+                  {system === 'motor' && acc2Num > 0 && <SumRow label="อุปกรณ์เสริม 2" value={`${Math.round(acc2Num).toLocaleString('th-TH')} ฿`} />}
                   {!hasCombos && motorNum > 0 && <SumRow label="มอเตอร์" value={`${Math.round(motorNum).toLocaleString('th-TH')} ฿`} />}
                   {hasCombos && sewingAmt > 0 && <SumRow label="ค่าเย็บ" value={`${sewingAmt.toLocaleString('th-TH')} ฿`} />}
                   {hasCombos && setupAmt  > 0 && <SumRow label="ค่าติดตั้ง" value={`${setupAmt.toLocaleString('th-TH')} ฿`} />}
                   <div style={{ borderTop:'1.5px solid #1F3A3A',marginTop:10,paddingTop:10,display:'flex',justifyContent:'space-between',alignItems:'center' }}>
                     <span style={{ fontWeight:700,color:'#1F3A3A' }}>รวมทั้งสิ้น</span>
-                    <span style={{ fontWeight:700,fontSize:18,color:'#1F3A3A' }}>{f2(total)} ฿</span>
+                    <span style={{ fontWeight:700,fontSize:14,color:'#1F3A3A' }}>{f2(total)} ฿</span>
+                  </div>
+                  <div style={{ borderTop:'2px solid #dc2626',marginTop:8,paddingTop:8,display:'flex',justifyContent:'space-between',alignItems:'center' }}>
+                    <span style={{ fontWeight:700,color:'#dc2626',fontSize:13 }}>ราคารวมสุทธิ <span style={{ fontWeight:400,color:'#9ca3af' }}>({railQtyNum} ชุด)</span></span>
+                    <span style={{ fontWeight:700,fontSize:15,color:'#dc2626' }}>{f2(total * railQtyNum)} ฿</span>
                   </div>
                   {selectedCode && (
                     <div style={{ marginTop:10,fontSize:12,color:'#dc2626',fontWeight:600 }}>
@@ -1226,7 +1505,7 @@ export default function WizardModal({ onClose, onAdd, nextNo, editRow }: Props) 
                 ← ก่อนหน้า
               </button>
             )}
-            {typeId && <span style={{ fontSize:12,color:'#6b7280' }}>ประเภท: <strong style={{ color:'#1F3A3A' }}>{typeInfo?.label}</strong>{step >= 2 && <> · ระบบ: <strong style={{ color:'#1F3A3A' }}>{systemLabel}</strong></>}</span>}
+            {typeId && <span style={{ fontSize:12,color:'#6b7280' }}>ประเภท: <strong style={{ color:'#1F3A3A' }}>{typeInfo?.label}</strong>{step >= 2 && !!systemMain && <> · ระบบ: <strong style={{ color:'#1F3A3A' }}>{systemLabel}</strong></>}</span>}
           </div>
           {step < STEP_PRICE ? (
             <button disabled={!canNext} onClick={() => setStep(s => s + 1)}
@@ -1314,18 +1593,29 @@ function LabelInput({ label, value, onChange, placeholder, labelColor }: { label
   );
 }
 
-function RailComboInput({ label, value, onChange, onSelectId, products, loading }: {
+function RailComboInput({ label, value, onChange, onSelectId, products, loading, windowWidth, noLabel, hidePrice }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   onSelectId?: (id: number | null) => void;
   products: Product[];
   loading: boolean;
+  windowWidth?: number;
+  noLabel?: boolean;
+  hidePrice?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [selName, setSelName] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  const matchesWidth = (p: Product) => {
+    if (!windowWidth || windowWidth <= 0) return false;
+    const w1 = parseFloat(p.width1 ?? '') || 0;
+    const w2 = parseFloat(p.width2 ?? '') || 0;
+    if (w2 <= 0) return false;
+    return windowWidth >= w1 && windowWidth <= w2;
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -1335,7 +1625,27 @@ function RailComboInput({ label, value, onChange, onSelectId, products, loading 
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  /* auto-select: (1) restore by price in edit mode, (2) auto-match by window width */
+  useEffect(() => {
+    if (products.length === 0) return;
+    if (!selName && value) {
+      const priceNum = parseFloat(value.replace(/,/g, ''));
+      const match = products.find(p => p.price > 0 && Math.abs(p.price - priceNum) < 1);
+      if (match) { setSelName(match.name || match.code); onSelectId?.(match.id); return; }
+    }
+    if (!selName && !value && windowWidth && windowWidth > 0) {
+      const match = products.find(matchesWidth);
+      if (match) {
+        onChange(match.price > 0 ? String(match.price) : '');
+        onSelectId?.(match.id);
+        setSelName(match.name || match.code);
+      }
+    }
+  }, [products]);
+
+  const hasWidthRange = windowWidth && windowWidth > 0 && products.some(p => parseFloat(p.width2 ?? '') > 0);
   const filtered = products.filter(p => {
+    if (hasWidthRange && !matchesWidth(p)) return false;
     if (!q) return true;
     const ql = q.toLowerCase();
     return (p.code ?? '').toLowerCase().includes(ql) || (p.name ?? '').toLowerCase().includes(ql);
@@ -1351,79 +1661,86 @@ function RailComboInput({ label, value, onChange, onSelectId, products, loading 
 
   const handleClear = () => { onChange(''); onSelectId?.(null); setSelName(''); };
 
-  /* fallback to plain input when no catalog available */
-  if (products.length === 0 && !loading) {
-    return (
-      <div>
-        <div style={{ fontSize:12,color:'#dc2626',marginBottom:5,fontWeight:500 }}>{label}</div>
-        <input value={value} onChange={e => onChange(e.target.value)} placeholder="ถ้ามี เช่น 2900"
-          style={{ width:'100%',border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 14px',fontSize:14,outline:'none',background:'#fff',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A' }}
-          onFocus={e => (e.target.style.borderColor='#1F3A3A')} onBlur={e => (e.target.style.borderColor='#E5E0D5')} />
-      </div>
-    );
-  }
+  const inputStyle: React.CSSProperties = {
+    width:'100%', border:'1.5px solid #E5E0D5', borderRadius:10, padding:'9px 14px',
+    fontSize:13, outline:'none', background:'#fff', boxSizing:'border-box',
+    fontFamily:'inherit', color:'#1F3A3A',
+  };
 
   return (
-    <div ref={wrapRef} style={{ position:'relative' }}>
-      <div style={{ fontSize:12,color:'#dc2626',marginBottom:5,fontWeight:500 }}>{label}</div>
+    <div>
+      {!noLabel && <div style={{ fontSize:12,color:'#dc2626',marginBottom:5,fontWeight:500 }}>{label}</div>}
+      <div style={{ display:'flex',gap:8 }}>
 
-      {/* Trigger */}
-      {selName ? (
-        <div style={{ display:'flex',alignItems:'center',gap:8,border:'1.5px solid #1F3A3A',borderRadius:10,padding:'9px 14px',background:'#fff' }}>
-          <span style={{ flex:1,fontSize:13,fontWeight:600,color:'#1F3A3A',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>📦 {selName}</span>
-          {value && <span style={{ fontSize:13,fontWeight:700,color:'#C9A581',flexShrink:0 }}>฿{Number(value).toLocaleString('th-TH')}</span>}
-          <button onClick={handleClear} style={{ background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:16,lineHeight:1,padding:0,flexShrink:0 }}>✕</button>
-        </div>
-      ) : (
-        <div onClick={() => setOpen(o => !o)}
-          style={{ display:'flex',alignItems:'center',gap:8,border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 14px',background:'#fff',cursor:'pointer' }}>
-          <span style={{ flex:1,fontSize:13,color: loading ? '#9ca3af' : value ? '#1F3A3A' : '#9ca3af' }}>
-            {loading ? '⏳ กำลังโหลดรายการ...' : value ? `฿ ${Number(value).toLocaleString('th-TH')}` : '🔍 เลือกจากรายการ หรือพิมพ์ราคา'}
-          </span>
-          <span style={{ fontSize:10,color:'#9ca3af' }}>▾</span>
-        </div>
-      )}
-
-      {/* Dropdown */}
-      {open && !loading && (
-        <div style={{ position:'absolute',top:'calc(100% + 4px)',left:0,right:0,zIndex:50,background:'#fff',border:'1.5px solid #E5E0D5',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',overflow:'hidden' }}>
-          <div style={{ padding:'8px 10px',borderBottom:'1px solid #E5E0D5' }}>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="ค้นหา ชื่อ / รหัสสินค้า..." autoFocus
-              style={{ width:'100%',border:'1px solid #E5E0D5',borderRadius:8,padding:'7px 10px',fontSize:12,outline:'none',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A' }} />
-          </div>
-          <div style={{ maxHeight:180,overflowY:'auto' }}>
-            {filtered.length === 0 ? (
-              <div style={{ padding:'14px',textAlign:'center',fontSize:12,color:'#9ca3af' }}>ไม่พบรายการ</div>
-            ) : filtered.map(p => (
-              <div key={p.code} onClick={() => handleSelect(p)}
-                style={{ padding:'9px 14px',cursor:'pointer',borderBottom:'1px solid #F8F5F0',display:'flex',alignItems:'center',gap:10 }}
-                onMouseEnter={e => (e.currentTarget.style.background='#F8F5F0')}
-                onMouseLeave={e => (e.currentTarget.style.background='')}>
-                <div style={{ flex:1,minWidth:0 }}>
-                  <div style={{ fontSize:10,color:'#9ca3af',fontFamily:'monospace' }}>{p.code}</div>
-                  <div style={{ fontSize:12,fontWeight:600,color:'#1F3A3A',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{p.name || '—'}</div>
-                </div>
-                <div style={{ fontSize:13,fontWeight:700,color:'#C9A581',flexShrink:0 }}>
-                  {p.price > 0 ? `฿${Number(p.price).toLocaleString('th-TH')}` : '—'}
-                </div>
+        {/* ── Product picker ── */}
+        <div ref={wrapRef} style={{ flex:1,position:'relative' }}>
+          <div style={{ fontSize:11,color:'#6b7280',marginBottom:3 }}>รหัสสินค้า</div>
+          {selName ? (
+            <div style={{ display:'flex',alignItems:'center',gap:6,border:'1.5px solid #1F3A3A',borderRadius:10,padding:'9px 12px',background:'#fff' }}>
+              <span style={{ flex:1,fontSize:12,fontWeight:600,color:'#1F3A3A',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>📦 {selName}</span>
+              <button onClick={handleClear} style={{ background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:15,lineHeight:1,padding:0,flexShrink:0 }}>✕</button>
+            </div>
+          ) : (
+            <div onClick={() => !loading && setOpen(o => !o)}
+              style={{ display:'flex',alignItems:'center',gap:6,border:'1.5px solid #E5E0D5',borderRadius:10,padding:'9px 12px',background:'#fff',cursor: loading ? 'default' : 'pointer' }}>
+              <span style={{ flex:1,fontSize:12,color:'#9ca3af' }}>
+                {loading ? '⏳ กำลังโหลด...' : '🔍 เลือกรายการ'}
+              </span>
+              <span style={{ fontSize:10,color:'#9ca3af' }}>▾</span>
+            </div>
+          )}
+          {open && !loading && (
+            <div style={{ position:'absolute',top:'calc(100% + 4px)',left:0,right:0,zIndex:50,background:'#fff',border:'1.5px solid #E5E0D5',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,0.15)',overflow:'hidden' }}>
+              <div style={{ padding:'8px 10px',borderBottom:'1px solid #E5E0D5' }}>
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="ค้นหา ชื่อ / รหัสสินค้า..." autoFocus
+                  style={{ width:'100%',border:'1px solid #E5E0D5',borderRadius:8,padding:'7px 10px',fontSize:12,outline:'none',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A' }} />
               </div>
-            ))}
-          </div>
-          <div style={{ padding:'8px 10px',borderTop:'1px solid #E5E0D5',background:'#F8F5F0' }}>
-            <div style={{ fontSize:10,color:'#9ca3af',marginBottom:4 }}>หรือพิมพ์ราคาเอง</div>
-            <input value={value} onChange={e => { onChange(e.target.value); setSelName(''); }}
-              placeholder="เช่น 18250"
-              style={{ width:'100%',border:'1px solid #E5E0D5',borderRadius:8,padding:'6px 10px',fontSize:12,outline:'none',boxSizing:'border-box',fontFamily:'inherit',color:'#1F3A3A' }} />
-          </div>
+              <div style={{ maxHeight:200,overflowY:'auto' }}>
+                {filtered.length === 0 ? (
+                  <div style={{ padding:'14px',textAlign:'center',fontSize:12,color:'#9ca3af' }}>ไม่พบรายการ</div>
+                ) : filtered.map(p => (
+                  <div key={p.code} onClick={() => handleSelect(p)}
+                    style={{ padding:'9px 14px',cursor:'pointer',borderBottom:'1px solid #F8F5F0',display:'flex',alignItems:'center',gap:10 }}
+                    onMouseEnter={e => (e.currentTarget.style.background='#F8F5F0')}
+                    onMouseLeave={e => (e.currentTarget.style.background='')}>
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ fontSize:10,color:'#9ca3af',fontFamily:'monospace' }}>{p.code}</div>
+                      <div style={{ fontSize:12,fontWeight:600,color:'#1F3A3A',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{p.name || '—'}</div>
+                    </div>
+                    <div style={{ flexShrink:0, textAlign:'right' }}>
+                      {matchesWidth(p) && (
+                        <div style={{ fontSize:9, color:'#166534', background:'#D1F2D7', borderRadius:4, padding:'1px 5px', marginBottom:2 }}>ตรงขนาด ✓</div>
+                      )}
+                      <div style={{ fontSize:13, fontWeight:700, color: matchesWidth(p) ? '#166534' : '#C9A581' }}>
+                        {p.price > 0 ? `฿${Number(p.price).toLocaleString('th-TH')}` : '—'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* ── Price input ── */}
+        {!hidePrice && (
+        <div style={{ width:70,flexShrink:0 }}>
+          <div style={{ fontSize:11,color:'#6b7280',marginBottom:3 }}>ราคา (฿)</div>
+          <input value={value} onChange={e => onChange(e.target.value)} placeholder="เช่น 15850"
+            style={{ ...inputStyle, textAlign:'right' }}
+            onFocus={e => (e.target.style.borderColor='#1F3A3A')}
+            onBlur={e => (e.target.style.borderColor='#E5E0D5')} />
+        </div>
+        )}
+
+      </div>
     </div>
   );
 }
 
 function SumRow({ label, value, gold }: { label: string; value: string; gold?: boolean }) {
   return (
-    <div style={{ display:'flex',justifyContent:'space-between',fontSize:13,padding:'4px 0',color: gold ? '#C9A581' : '#374151' }}>
+    <div style={{ display:'flex',justifyContent:'space-between',fontSize:13,padding:'4px 0',color: gold ? '#dc2626' : '#374151' }}>
       <span>{label}</span>
       <span style={{ fontWeight:500 }}>{value}</span>
     </div>

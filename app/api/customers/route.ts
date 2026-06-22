@@ -68,14 +68,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'กรุณาระบุชื่อลูกค้า' }, { status: 400 });
     }
 
-    // Auto-generate next cus_code
-    const last = await db('customers').max('cus_code as m').first();
-    let nextNum = 1;
-    if (last?.m) {
-      const match = String(last.m).match(/C(\d+)/);
-      if (match) nextNum = parseInt(match[1], 10) + 1;
+    // Auto-generate next cus_code (or use manual override)
+    let cus_code: string;
+    if (b.cus_code_manual?.trim()) {
+      cus_code = b.cus_code_manual.trim();
+    } else {
+      const last = await db('customers').max('cus_code as m').first();
+      let nextNum = 1;
+      if (last?.m) {
+        const match = String(last.m).match(/C(\d+)/);
+        if (match) nextNum = parseInt(match[1], 10) + 1;
+      }
+      cus_code = `C${String(nextNum).padStart(4, '0')}`;
     }
-    const cus_code = `C${String(nextNum).padStart(4, '0')}`;
 
     // Auto-generate category_code
     const cus_type = b.cus_type === 'company' ? 'company' : 'individual';
@@ -106,6 +111,7 @@ export async function POST(req: NextRequest) {
       commission_type: b.commission_type || 'none',
       commission_value: b.commission_value || 0,
       credit_day: b.credit_day || 0,
+      withholding_tax: b.withholding_tax || 'ไม่หัก',
       status: 'active',
       remark: b.remark?.trim() || null,
     });

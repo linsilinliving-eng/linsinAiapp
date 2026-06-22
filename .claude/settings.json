@@ -36,7 +36,11 @@
       "PowerShell(Invoke-WebRequest -Uri \"http://localhost:3000\" -UseBasicParsing -TimeoutSec 5)",
       "Read(//c/xampp/mysql/backup/**)",
       "Read(//c/xampp/mysql/data/**)",
-      "Bash(claude auth *)"
+      "Bash(claude auth *)",
+      "Bash(curl -s http://localhost:3000/api/formula-config/types)",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\);JSON.parse\\(d\\).filter\\(t=>['wave','lon','sfold'].includes\\(t.type_id\\)\\).forEach\\(t=>console.log\\(t.type_id,'=>',t.type_label\\)\\)\")",
+      "Bash(node -e \"const db=require\\('./lib/db'\\).default;db\\('curtain_type_config'\\).whereIn\\('type_id',['wave','lon','sfold']\\).select\\('type_id','type_label'\\).then\\(r=>{r.forEach\\(t=>console.log\\(t.type_id,'=>',t.type_label\\)\\);process.exit\\(\\);}\\)\")",
+      "PowerShell(node -e \"const db = require\\('./lib/db'\\).default; db\\('curtain_type_config'\\).where\\({type_id:'wave'}\\).first\\(\\).then\\(r => { console.log\\(JSON.stringify\\({formula_group:r.formula_group, face_width:r.face_width, formula_p:r.formula_p, formula_h:r.formula_h, formula_eff:r.formula_eff}\\)\\); db.destroy\\(\\); }\\)\")"
     ],
     "additionalDirectories": [
       "c:\\myapp"
